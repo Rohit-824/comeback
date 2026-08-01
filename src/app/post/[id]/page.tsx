@@ -74,7 +74,7 @@ const SAMPLE_COMMENTS: CommentType[] = [
 ];
 
 export default function DiscussionPostPage({ params }: { params: { id: string } }) {
-  const { requireAuthAction } = useAuth();
+  const { requireAuthAction, currentUser, user } = useAuth();
 
   const [topComment, setTopComment] = useState('');
   const [commentsList, setCommentsList] = useState<CommentType[]>(SAMPLE_COMMENTS);
@@ -191,6 +191,20 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
       postTitle: 'Just ₹50 away from my goal — anxiety disorder during exams'
     });
     localStorage.setItem('adminCommentReports', JSON.stringify(existingReports));
+
+    const reporterEmail = currentUser?.email || user?.email;
+    if (reporterEmail) {
+      fetch('/api/send-status-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'comment_report_thankyou',
+          email: reporterEmail,
+          fullName: currentUser?.full_name || 'Member',
+          commentText: reportingComment.text,
+        }),
+      }).catch((err) => console.error('Failed to send report thank-you email:', err));
+    }
 
     setReportSuccess(true);
     setTimeout(() => {

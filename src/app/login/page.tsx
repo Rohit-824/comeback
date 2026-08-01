@@ -1,268 +1,389 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { 
-  Search, 
-  Flame, 
-  Heart, 
-  MessageSquare, 
-  Tag, 
-  Share2, 
-  MoreHorizontal, 
-  Flag, 
-  Building2, 
-  CreditCard
+import { useAuth, StudentRegisterData, DonorRegisterData } from '@/context/AuthContext';
+import {
+  Mail,
+  Lock,
+  User,
+  GraduationCap,
+  Briefcase,
+  Building2,
+  Hash,
+  CalendarDays,
+  ArrowRight,
+  AlertCircle,
+  LogIn,
+  UserPlus,
 } from 'lucide-react';
 
-interface FeedPost {
-  id: string;
-  title: string;
-  category: 'funding' | 'discussion';
-  tag: 'trending' | 'fee_appeal' | 'general' | 'confession' | 'request' | 'complaint' | 'urgent';
-  studentName: string;
-  college: string;
-  subjectCode?: string;
-  goal?: number;
-  raised?: number;
-  upvotes: number;
-  commentsCount: number;
-  timeAgo: string;
-}
+type Mode = 'signin' | 'register';
+type RegisterRole = 'student' | 'donor';
 
-export default function FeedPage() {
-  const searchParams = useSearchParams();
-  const initialCategory = searchParams.get('category') || 'all';
+export default function LoginPage() {
+  const router = useRouter();
+  const { loginUser, registerUser } = useAuth();
 
-  const [activeFilter, setActiveFilter] = useState<string>(initialCategory);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [openMenuPostId, setOpenMenuPostId] = useState<string | null>(null);
+  const [mode, setMode] = useState<Mode>('signin');
+  const [registerRole, setRegisterRole] = useState<RegisterRole>('student');
+  const [error, setError] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // REQ 5: Load Razorpay Checkout SDK
-  useEffect(() => {
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.async = true;
-    document.body.appendChild(script);
-    return () => {
-      document.body.removeChild(script);
-    };
-  }, []);
+  // Sign in fields
+  const [signInEmail, setSignInEmail] = useState('');
+  const [signInPassword, setSignInPassword] = useState('');
 
-  const [posts, setPosts] = useState<FeedPost[]>([
-    {
-      id: 'post-1',
-      title: 'Need assistance clearing Digital Electronics re-appear fee before exam deadline',
-      category: 'funding',
-      tag: 'fee_appeal',
-      studentName: 'Divya Singh',
-      college: 'Netaji Subhas University of Technology (NSUT)',
-      subjectCode: 'EC-202',
-      goal: 2000,
-      raised: 1200,
-      upvotes: 84,
-      commentsCount: 12,
-      timeAgo: '2 hours ago',
-    },
-    {
-      id: 'post-2',
-      title: 'Cleared my back, got placed at Microsoft, donating ₹5,000 back to fellow DTU students',
-      category: 'discussion',
-      tag: 'trending',
-      studentName: 'Aarav Sharma',
-      college: 'Delhi Technological University (DTU)',
-      upvotes: 142,
-      commentsCount: 28,
-      timeAgo: '1 day ago',
-    },
-    {
-      id: 'post-3',
-      title: 'Anonymous Confession: Attendance policy in 3rd semester Engineering Physics is impossible',
-      category: 'discussion',
-      tag: 'confession',
-      studentName: 'Anonymous Student',
-      college: 'Delhi Technological University (DTU)',
-      upvotes: 62,
-      commentsCount: 19,
-      timeAgo: '3 hours ago',
-    }
-  ]);
+  // Shared register fields
+  const [fullName, setFullName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
 
-  // REQ 4: Fixed Comment Reporting Handler
-  const handleReportComment = async (postId: string) => {
-    setOpenMenuPostId(null);
-    try {
-      await fetch('/api/send-status-email', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'comment_report_thankyou',
-          email: 'collegeeasy.official@gmail.com',
-          fullName: 'Community Member',
-          commentText: `Flagged content on Post ID ${postId}`,
-        }),
-      });
-      alert('Report received. Our moderation team has been notified.');
-    } catch (err) {
-      alert('Report submitted successfully.');
-    }
+  // Student-only fields
+  const [college, setCollege] = useState('');
+  const [branch, setBranch] = useState('');
+  const [year, setYear] = useState('');
+  const [rollNumber, setRollNumber] = useState('');
+
+  // Donor-only field
+  const [occupation, setOccupation] = useState('');
+
+  const resetFormFields = () => {
+    setFullName('');
+    setEmail('');
+    setPassword('');
+    setCollege('');
+    setBranch('');
+    setYear('');
+    setRollNumber('');
+    setOccupation('');
   };
 
-  // REQ 5: Direct Razorpay Checkout Modal Launcher
-  const handleRazorpayPay = (post: FeedPost) => {
-    if (typeof window !== 'undefined' && (window as any).Razorpay) {
-      const options = {
-        key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_mock_key',
-        amount: 5000, // ₹50.00
-        currency: 'INR',
-        name: 'comeBACK Foundation',
-        description: `Direct Fee Contribution to ${post.studentName}`,
-        handler: function (response: any) {
-          alert(`Payment Successful! Payment Ref: ${response.razorpay_payment_id}`);
-        },
-        prefill: {
-          name: 'Supporter',
-          email: 'donor@example.com',
-        },
-        theme: {
-          color: '#2563eb',
-        },
-      };
-      const rzp = new (window as any).Razorpay(options);
-      rzp.open();
-    } else {
-      alert('Razorpay Gateway is initializing. Please try again in a moment.');
+  const handleSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    const result = await loginUser(signInEmail.trim().toLowerCase(), signInPassword);
+
+    if (!result.success) {
+      setError(result.message || 'Invalid email or password.');
+      setIsSubmitting(false);
+      return;
     }
+
+    router.push('/profile');
   };
 
-  const filteredPosts = posts.filter(post => {
-    const matchesSearch = post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          post.college.toLowerCase().includes(searchQuery.toLowerCase());
-    
-    if (activeFilter === 'all') return matchesSearch;
-    if (activeFilter === 'funding') return matchesSearch && post.category === 'funding';
-    if (activeFilter === 'discussion') return matchesSearch && post.category === 'discussion';
-    return matchesSearch && post.tag === activeFilter;
-  });
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setIsSubmitting(true);
+
+    const data: StudentRegisterData | DonorRegisterData =
+      registerRole === 'student'
+        ? {
+            role: 'student',
+            fullName: fullName.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+            college: college.trim(),
+            branch: branch.trim(),
+            year: year.trim(),
+            rollNumber: rollNumber.trim(),
+          }
+        : {
+            role: 'donor',
+            fullName: fullName.trim(),
+            email: email.trim().toLowerCase(),
+            password,
+            occupation: occupation.trim(),
+          };
+
+    const result = await registerUser(data);
+
+    if (!result.success) {
+      setError(result.message || 'Registration failed. Please try again.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    resetFormFields();
+    router.push('/profile');
+  };
+
+  const switchMode = (next: Mode) => {
+    setMode(next);
+    setError('');
+  };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-slate-100 font-sans pt-24 pb-20 selection:bg-blue-500 selection:text-white flex flex-col justify-between">
+    <div className="min-h-screen bg-[#121212] text-slate-100 font-sans pt-24 pb-20 flex flex-col justify-between">
       <Navbar />
 
-      <main className="max-w-5xl mx-auto px-6 space-y-6 w-full my-auto">
-        
-        {/* SEARCH BAR */}
-        <div className="relative">
-          <Search className="w-4 h-4 text-slate-500 absolute left-4 top-1/2 -translate-y-1/2" />
-          <input 
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search posts by subject, college, or keywords..."
-            className="w-full bg-[#1E1E1E] border border-slate-800 focus:border-blue-500 text-white rounded-2xl pl-11 pr-4 py-3.5 text-xs sm:text-sm focus:outline-none shadow-xl"
-          />
-        </div>
+      <main className="max-w-md mx-auto px-6 w-full my-auto">
+        <div className="bg-[#1E1E1E] border border-slate-800 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
+          <div className="text-center space-y-1.5">
+            <div className="w-12 h-12 bg-blue-950 text-blue-400 rounded-2xl flex items-center justify-center mx-auto border border-blue-800/80">
+              {mode === 'signin' ? <LogIn className="w-6 h-6" /> : <UserPlus className="w-6 h-6" />}
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
+              {mode === 'signin' ? 'Welcome Back' : 'Create Your Account'}
+            </h1>
+            <p className="text-xs text-slate-400">
+              {mode === 'signin'
+                ? 'Sign in to your comeBACK account'
+                : 'Join as a student seeking support or a donor giving support'}
+            </p>
+          </div>
 
-        {/* REQ 3: MULTI-CATEGORY FILTERS */}
-        <div className="flex items-center gap-2 overflow-x-auto scrollbar-none pb-2 text-xs font-bold">
-          {[
-            { id: 'all', label: 'All Posts' },
-            { id: 'trending', label: '🔥 Trending' },
-            { id: 'funding', label: 'Fee Appeal' },
-            { id: 'discussion', label: 'General Discussion' },
-            { id: 'confession', label: 'Confession' },
-            { id: 'request', label: 'Request' },
-            { id: 'complaint', label: 'Complaint' },
-            { id: 'urgent', label: 'Urgent' },
-          ].map(f => (
+          {/* MODE TABS */}
+          <div className="grid grid-cols-2 gap-2 bg-[#121212] p-1 rounded-2xl border border-slate-800">
             <button
-              key={f.id}
-              onClick={() => setActiveFilter(f.id)}
-              className={`px-4 py-2 rounded-xl transition whitespace-nowrap border ${
-                activeFilter === f.id 
-                  ? 'bg-blue-600 text-white border-blue-500 shadow-md shadow-blue-600/20' 
-                  : 'bg-[#1E1E1E] text-slate-400 border-slate-800 hover:text-white'
+              type="button"
+              onClick={() => switchMode('signin')}
+              className={`py-2.5 rounded-xl text-xs font-bold transition ${
+                mode === 'signin' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'text-slate-400 hover:text-white'
               }`}
             >
-              {f.label}
+              Sign In
             </button>
-          ))}
-        </div>
+            <button
+              type="button"
+              onClick={() => switchMode('register')}
+              className={`py-2.5 rounded-xl text-xs font-bold transition ${
+                mode === 'register' ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' : 'text-slate-400 hover:text-white'
+              }`}
+            >
+              Register
+            </button>
+          </div>
 
-        {/* POSTS FEED LIST */}
-        <div className="space-y-4">
-          {filteredPosts.map(post => (
-            <div key={post.id} className="bg-[#1E1E1E] rounded-3xl p-6 border border-slate-800 space-y-4 shadow-xl">
-              
-              <div className="flex items-center justify-between text-xs text-slate-400 border-b border-slate-800/80 pb-3">
-                <div className="flex items-center gap-2">
-                  <span className="font-extrabold text-white">{post.studentName}</span>
-                  <span>•</span>
-                  <span className="font-mono text-slate-400">{post.college}</span>
+          {error && (
+            <div className="bg-rose-950/90 border border-rose-800 p-3 rounded-xl flex items-center gap-2.5 text-xs text-rose-300">
+              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {mode === 'signin' ? (
+            <form onSubmit={handleSignIn} className="space-y-4 text-xs sm:text-sm">
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Email *</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={signInEmail}
+                    onChange={(e) => setSignInEmail(e.target.value)}
+                    placeholder="you@example.com"
+                    className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                  />
                 </div>
-                <span>{post.timeAgo}</span>
               </div>
 
-              <h2 className="text-base sm:text-lg font-bold text-white">
-                <Link href={post.category === 'funding' ? `/donate/${post.id}` : `/post/${post.id}`} className="hover:text-blue-400 transition">
-                  {post.title}
-                </Link>
-              </h2>
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Password *</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    value={signInPassword}
+                    onChange={(e) => setSignInPassword(e.target.value)}
+                    placeholder="••••••••••••"
+                    className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                  />
+                </div>
+              </div>
 
-              {/* REQ 5: RAZORPAY TRANSFER ACTION */}
-              {post.category === 'funding' && (
-                <div className="pt-2 flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#121212] p-4 rounded-2xl border border-slate-800">
-                  <div>
-                    <span className="text-xs text-slate-400">Target: <strong className="text-white">₹{post.goal}</strong> • Raised: <strong className="text-emerald-400">₹{post.raised}</strong></span>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                <span>{isSubmitting ? 'Signing In...' : 'Sign In'}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          ) : (
+            <form onSubmit={handleRegister} className="space-y-4 text-xs sm:text-sm">
+              {/* ROLE TOGGLE */}
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setRegisterRole('student')}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 ${
+                    registerRole === 'student'
+                      ? 'bg-blue-950 border-blue-700 text-blue-300'
+                      : 'bg-[#121212] border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <GraduationCap className="w-4 h-4" /> Student
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRegisterRole('donor')}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition border flex items-center justify-center gap-1.5 ${
+                    registerRole === 'donor'
+                      ? 'bg-amber-950 border-amber-700 text-amber-300'
+                      : 'bg-[#121212] border-slate-800 text-slate-400 hover:text-white'
+                  }`}
+                >
+                  <Briefcase className="w-4 h-4" /> Donor
+                </button>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Full Name *</label>
+                <div className="relative">
+                  <User className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="text"
+                    required
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    placeholder="Your full name"
+                    className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Email *</label>
+                <div className="relative">
+                  <Mail className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder={registerRole === 'student' ? 'you@college.edu' : 'you@example.com'}
+                    className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300">Password *</label>
+                <div className="relative">
+                  <Lock className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="At least 6 characters"
+                    className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                  />
+                </div>
+              </div>
+
+              {registerRole === 'student' ? (
+                <>
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-300">College *</label>
+                    <div className="relative">
+                      <Building2 className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        required
+                        value={college}
+                        onChange={(e) => setCollege(e.target.value)}
+                        placeholder="e.g. Delhi Technological University"
+                        className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                      />
+                    </div>
                   </div>
-                  <button 
-                    onClick={() => handleRazorpayPay(post)}
-                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2"
-                  >
-                    <CreditCard className="w-4 h-4" /> Transfer ₹50 via Razorpay
-                  </button>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <label className="font-semibold text-slate-300">Branch *</label>
+                      <div className="relative">
+                        <GraduationCap className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          required
+                          value={branch}
+                          onChange={(e) => setBranch(e.target.value)}
+                          placeholder="e.g. ECE"
+                          className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-3 py-3 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <label className="font-semibold text-slate-300">Year *</label>
+                      <div className="relative">
+                        <CalendarDays className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          required
+                          value={year}
+                          onChange={(e) => setYear(e.target.value)}
+                          placeholder="e.g. 2nd Year"
+                          className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-3 py-3 focus:outline-none"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="font-semibold text-slate-300">College Roll Number *</label>
+                    <div className="relative">
+                      <Hash className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                      <input
+                        type="text"
+                        required
+                        value={rollNumber}
+                        onChange={(e) => setRollNumber(e.target.value)}
+                        placeholder="Your college roll number"
+                        className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                      />
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Occupation *</label>
+                  <div className="relative">
+                    <Briefcase className="w-4 h-4 text-slate-500 absolute left-3.5 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      required
+                      value={occupation}
+                      onChange={(e) => setOccupation(e.target.value)}
+                      placeholder="e.g. Software Engineer"
+                      className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl pl-10 pr-4 py-3 focus:outline-none"
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* REQ 4: POST ACTIONS & REPORT MENU */}
-              <div className="flex items-center justify-between pt-2 text-xs text-slate-400">
-                <div className="flex items-center gap-4">
-                  <span className="flex items-center gap-1 font-bold text-slate-300">
-                    <Flame className="w-4 h-4 text-amber-500" /> {post.upvotes}
-                  </span>
-                  <span className="flex items-center gap-1 font-bold text-slate-300">
-                    <MessageSquare className="w-4 h-4 text-blue-400" /> {post.commentsCount} Comments
-                  </span>
-                </div>
+              <button
+                type="submit"
+                disabled={isSubmitting}
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-95 disabled:opacity-50"
+              >
+                <span>{isSubmitting ? 'Creating Account...' : `Create ${registerRole === 'student' ? 'Student' : 'Donor'} Account`}</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+            </form>
+          )}
 
-                <div className="relative">
-                  <button 
-                    onClick={() => setOpenMenuPostId(openMenuPostId === post.id ? null : post.id)}
-                    className="p-1.5 hover:text-white transition"
-                  >
-                    <MoreHorizontal className="w-4 h-4" />
-                  </button>
-
-                  {openMenuPostId === post.id && (
-                    <div className="absolute right-0 bottom-8 bg-[#121212] border border-slate-800 rounded-xl p-2 shadow-2xl z-20">
-                      <button 
-                        onClick={() => handleReportComment(post.id)}
-                        className="px-3 py-1.5 text-xs font-bold text-rose-400 hover:bg-rose-950/50 rounded-lg transition flex items-center gap-1.5 whitespace-nowrap"
-                      >
-                        <Flag className="w-3.5 h-3.5" /> Report Content
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-            </div>
-          ))}
+          <p className="text-center text-[11px] text-slate-500">
+            {mode === 'signin' ? (
+              <>Don't have an account? <button onClick={() => switchMode('register')} className="text-blue-400 font-bold hover:underline">Register here</button></>
+            ) : (
+              <>Already have an account? <button onClick={() => switchMode('signin')} className="text-blue-400 font-bold hover:underline">Sign in</button></>
+            )}
+          </p>
         </div>
-
       </main>
 
       <Footer />

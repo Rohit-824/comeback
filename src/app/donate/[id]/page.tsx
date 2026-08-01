@@ -19,7 +19,7 @@ import {
 } from 'lucide-react';
 
 export default function DonatePage({ params }: { params: { id: string } }) {
-  const { requireAuthAction, currentUser } = useAuth();
+  const { requireAuthAction, currentUser, user } = useAuth();
 
   const [selectedAmount, setSelectedAmount] = useState<number>(50);
   const [customAmount, setCustomAmount] = useState<string>('50');
@@ -65,6 +65,26 @@ export default function DonatePage({ params }: { params: { id: string } }) {
 
       setReceiptDetails(generatedReceipt);
       setShowReceipt(true);
+
+      const donorEmail = currentUser?.email || user?.email;
+      if (donorEmail) {
+        fetch('/api/send-status-email', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'payment_receipt',
+            email: donorEmail,
+            fullName: generatedReceipt.donorName,
+            amount: generatedReceipt.amount,
+            receiptId: generatedReceipt.receiptId,
+            gatewayRef: generatedReceipt.gatewayRef,
+            date: generatedReceipt.date,
+            time: generatedReceipt.time,
+            studentName: generatedReceipt.studentName,
+            subjectCode: generatedReceipt.subjectCode,
+          }),
+        }).catch((err) => console.error('Failed to send payment receipt email:', err));
+      }
     });
   };
 

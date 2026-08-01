@@ -39,6 +39,7 @@ interface AuthContextType {
   registerUser: (data: RegisterData) => Promise<AuthResult>;
   loginUser: (email: string, password: string) => Promise<AuthResult>;
   logout: () => Promise<void>;
+  requireAuthAction: (action: () => void) => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -89,43 +90,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const registerUser = async (data: RegisterData): Promise<AuthResult> => {
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: data.email,
-        password: data.password,
-        options: {
-          data: {
-            full_name: data.fullName,
-            role: data.role,
-          },
-        },
+      const res = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          role: data.role,
+          fullName: data.fullName,
+          email: data.email,
+          password: data.password,
+          college: data.role === 'student' ? data.college : undefined,
+          branch: data.role === 'student' ? data.branch : undefined,
+          year: data.role === 'student' ? data.year : undefined,
+          rollNumber: data.role === 'student' ? data.rollNumber : undefined,
+          occupation: data.role === 'donor' ? data.occupation : undefined,
+        }),
       });
+      const result = await res.json();
 
-      if (authError) throw new Error(authError.message);
-      if (!authData.user) throw new Error('Registration failed.');
-
-      const profilePayload: Partial<Profile> = {
-        id: authData.user.id,
-        full_name: data.fullName,
-        email: data.email,
-        role: data.role,
-        is_admin: false,
-        member_since: new Date().toLocaleDateString('en-IN', { month: 'long', year: 'numeric' }),
-      };
-
-      if (data.role === 'student') {
-        profilePayload.college = data.college;
-        profilePayload.branch = data.branch;
-        profilePayload.year = data.year;
-        profilePayload.roll_number = data.rollNumber;
-      } else {
-        profilePayload.occupation = data.occupation;
+      if (!res.ok || !result.success) {
+        throw new Error(result.error || 'Registration failed.');
       }
 
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .upsert(profilePayload, { onConflict: 'id' });
+      // Account is created pre-confirmed by /api/register, so we can sign
+      // in immediately — no "confirm your email" step for the user.
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: data.email,
+        password: data.password,
+      });
+      if (signInError) throw new Error(signInError.message);
 
-      if (profileError) throw new Error(profileError.message);
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        const profile = await fetchProfile(session.user.id);
+        setCurrentUser(profile);
+      }
 
       fetch('/api/send-status-email', {
         method: 'POST',
@@ -167,6 +166,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setCurrentUser(null);
   };
 
+  const requireAuthAction = (action: () => void) => {
+    if (!user) {
+      window.location.href = '/login';
+      return;
+    }
+    action();
+  };
+
   const userEmail = currentUser?.email?.toLowerCase() || user?.email?.toLowerCase() || '';
   const isAdmin =
     currentUser?.is_admin === true ||
@@ -185,6 +192,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         registerUser,
         loginUser,
         logout,
+        requireAuthAction,
       }}
     >
       {children}
