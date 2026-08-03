@@ -1,8 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { 
   ArrowUp, 
@@ -16,7 +18,8 @@ import {
   Flag,
   X,
   AlertTriangle,
-  Check
+  Check,
+  Tag
 } from 'lucide-react';
 
 interface CommentType {
@@ -30,54 +33,14 @@ interface CommentType {
   replies?: CommentType[];
 }
 
-const SAMPLE_COMMENTS: CommentType[] = [
-  {
-    id: 'c1',
-    author: '2Sovereign4You',
-    avatarBg: 'bg-emerald-600',
-    timeAgo: '20h ago',
-    text: 'Eventually she will clear it. Let us see if we can close the remaining ₹50 right now!',
-    upvotes: 119,
-    userVote: null,
-    replies: [
-      {
-        id: 'c1-1',
-        author: 'mattenthehat',
-        avatarBg: 'bg-purple-600',
-        timeAgo: '19h ago',
-        text: '"I may have been early, but I\'m not wrong." Just sent ₹50 via UPI to close the goal!',
-        upvotes: 105,
-        userVote: null,
-        replies: [
-          {
-            id: 'c1-1-1',
-            author: 'Karan_DTU',
-            avatarBg: 'bg-blue-600',
-            timeAgo: '12h ago',
-            text: 'You absolute legend! Proud of this community.',
-            upvotes: 42,
-            userVote: null
-          }
-        ]
-      }
-    ]
-  },
-  {
-    id: 'c2',
-    author: 'Senior_Alumni_04',
-    avatarBg: 'bg-amber-600',
-    timeAgo: '1 day ago',
-    text: 'Stay strong Divya. Anxiety during engineering exams is far more common than people realize. If you need study notes for DE, reply here and I will drive link them.',
-    upvotes: 84,
-    userVote: null
-  }
-];
-
-export default function DiscussionPostPage({ params }: { params: { id: string } }) {
+export default function DiscussionPostPage() {
+  const params = useParams();
+  const postId = params?.id as string;
   const { requireAuthAction, currentUser, user } = useAuth();
 
+  const [postData, setPostData] = useState<any | null>(null);
   const [topComment, setTopComment] = useState('');
-  const [commentsList, setCommentsList] = useState<CommentType[]>(SAMPLE_COMMENTS);
+  const [commentsList, setCommentsList] = useState<CommentType[]>([]);
   const [replyingToId, setReplyingToId] = useState<string | null>(null);
   const [replyText, setReplyText] = useState('');
 
@@ -87,7 +50,59 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
   const [reportReason, setReportReason] = useState('Harassment or Hate Speech');
   const [reportSuccess, setReportSuccess] = useState(false);
 
-  // Single-Vote Logic
+  // FETCH PARTICULAR POST & ITS COMMENTS BY ID
+  useEffect(() => {
+    if (!postId) return;
+
+    // Fetch Post from LocalStorage
+    const savedPosts = localStorage.getItem('user_posts');
+    const savedFeed = localStorage.getItem('feed_posts');
+    let found = null;
+
+    if (savedPosts) {
+      try {
+        const parsed = JSON.parse(savedPosts);
+        found = parsed.find((p: any) => p.id === postId);
+      } catch (e) {
+        console.error('Error reading user_posts:', e);
+      }
+    }
+
+    if (!found && savedFeed) {
+      try {
+        const parsedFeed = JSON.parse(savedFeed);
+        found = parsedFeed.find((p: any) => p.id === postId);
+      } catch (e) {
+        console.error('Error reading feed_posts:', e);
+      }
+    }
+
+    if (found) {
+      setPostData(found);
+    }
+
+    // Fetch Actual User Comments for this Post from LocalStorage
+    const savedComments = localStorage.getItem(`post_comments_${postId}`);
+    if (savedComments) {
+      try {
+        const parsedComments = JSON.parse(savedComments);
+        if (Array.isArray(parsedComments)) {
+          setCommentsList(parsedComments);
+        }
+      } catch (e) {
+        console.error('Error reading comments:', e);
+      }
+    }
+  }, [postId]);
+
+  // Sync comment changes to LocalStorage
+  const syncCommentsToStorage = (updatedComments: CommentType[]) => {
+    setCommentsList(updatedComments);
+    if (postId) {
+      localStorage.setItem(`post_comments_${postId}`, JSON.stringify(updatedComments));
+    }
+  };
+
   const handleVote = (commentId: string, direction: 'up' | 'down') => {
     requireAuthAction(() => {
       const updateVotes = (list: CommentType[]): CommentType[] => {
@@ -117,7 +132,7 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
         });
       };
 
-      setCommentsList(updateVotes(commentsList));
+      syncCommentsToStorage(updateVotes(commentsList));
     });
   };
 
@@ -128,7 +143,7 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
 
       const newComment: CommentType = {
         id: `c-${Date.now()}`,
-        author: 'You',
+        author: currentUser?.full_name || 'You',
         avatarBg: 'bg-blue-600',
         timeAgo: 'Just now',
         text: topComment,
@@ -137,7 +152,8 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
         replies: []
       };
 
-      setCommentsList([newComment, ...commentsList]);
+      const updated = [newComment, ...commentsList];
+      syncCommentsToStorage(updated);
       setTopComment('');
     });
   };
@@ -148,7 +164,7 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
 
       const newReply: CommentType = {
         id: `r-${Date.now()}`,
-        author: 'You',
+        author: currentUser?.full_name || 'You',
         avatarBg: 'bg-blue-600',
         timeAgo: 'Just now',
         text: replyText,
@@ -168,30 +184,36 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
         });
       };
 
-      setCommentsList(addNestedReply(commentsList));
+      syncCommentsToStorage(addNestedReply(commentsList));
       setReplyingToId(null);
       setReplyText('');
     });
   };
 
-  // Submit Report to Admin Queue
+  // SYNC REPORTED COMMENT DIRECTLY TO ADMIN PORTAL
   const handleConfirmReport = (e: React.FormEvent) => {
     e.preventDefault();
     if (!reportingComment) return;
 
-    // Save report in LocalStorage so Admin portal can fetch it
-    const existingReports = JSON.parse(localStorage.getItem('adminCommentReports') || '[]');
-    existingReports.push({
-      id: `rep-${Date.now()}`,
+    // Build real report object
+    const newReport = {
+      id: `report-${Date.now()}`,
       commentId: reportingComment.id,
+      postId: postId,
+      postTitle: postData?.title || 'Campus Discussion Post',
       author: reportingComment.author,
       text: reportingComment.text,
       reason: reportReason,
-      time: 'Just now',
-      postTitle: 'Just ₹50 away from my goal — anxiety disorder during exams'
-    });
-    localStorage.setItem('adminCommentReports', JSON.stringify(existingReports));
+      reportedBy: currentUser?.full_name || 'Anonymous Student',
+      time: 'Just now'
+    };
 
+    // Save report to shared admin key
+    const existingReports = JSON.parse(localStorage.getItem('adminCommentReports') || '[]');
+    const updatedReports = [newReport, ...existingReports];
+    localStorage.setItem('adminCommentReports', JSON.stringify(updatedReports));
+
+    // Optional email notification request
     const reporterEmail = currentUser?.email || user?.email;
     if (reporterEmail) {
       fetch('/api/send-status-email', {
@@ -203,7 +225,7 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
           fullName: currentUser?.full_name || 'Member',
           commentText: reportingComment.text,
         }),
-      }).catch((err) => console.error('Failed to send report thank-you email:', err));
+      }).catch((err) => console.error('Failed to send report email:', err));
     }
 
     setReportSuccess(true);
@@ -213,21 +235,18 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
     }, 1500);
   };
 
-  // Recursive Comment Render Item
-  const RenderCommentItem = ({ comment, isNested = false }: { comment: CommentType; isNested?: boolean }) => {
+  const renderComment = (comment: CommentType, isNested = false) => {
     const isReplying = replyingToId === comment.id;
     const isMenuOpen = activeMenuId === comment.id;
 
     return (
-      <div className={`space-y-3 ${isNested ? 'pl-4 sm:pl-6 border-l-2 border-slate-800/80 my-3' : 'pt-4 border-t border-slate-800/60'}`}>
-        
-        {/* AUTHOR HEADER */}
+      <div key={comment.id} className={`space-y-3 ${isNested ? 'pl-4 sm:pl-6 border-l-2 border-slate-800/80 my-3' : 'pt-4 border-t border-slate-800/60'}`}>
         <div className="flex items-center justify-between text-xs">
           <div className="flex items-center gap-2">
             <span className={`w-6 h-6 ${comment.avatarBg} text-white font-bold rounded-full text-[10px] flex items-center justify-center shrink-0`}>
               {comment.author.substring(0, 2).toUpperCase()}
             </span>
-            <span className="font-bold text-slate-200 hover:underline cursor-pointer">{comment.author}</span>
+            <span className="font-bold text-slate-200">{comment.author}</span>
             <span className="text-slate-500">•</span>
             <span className="text-slate-500">{comment.timeAgo}</span>
           </div>
@@ -237,15 +256,11 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
           </button>
         </div>
 
-        {/* COMMENT TEXT */}
         <p className="text-xs sm:text-sm text-slate-200 leading-relaxed font-sans">
           {comment.text}
         </p>
 
-        {/* REDDIT ACTION BAR WITH 3 DOTS MENU */}
         <div className="flex items-center gap-4 text-xs font-semibold text-slate-400">
-          
-          {/* UPVOTE / DOWNVOTE */}
           <div className="flex items-center gap-1.5 bg-[#121212] px-2.5 py-1 rounded-full border border-slate-800">
             <button 
               onClick={() => handleVote(comment.id, 'up')} 
@@ -272,7 +287,6 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
             </button>
           </div>
 
-          {/* REPLY BUTTON */}
           <button 
             onClick={() => setReplyingToId(isReplying ? null : comment.id)}
             className="hover:text-white flex items-center gap-1.5 transition"
@@ -280,18 +294,16 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
             <MessageSquare className="w-3.5 h-3.5" /> Reply
           </button>
 
-          {/* SHARE BUTTON */}
           <button 
             onClick={() => {
               navigator.clipboard.writeText(window.location.href);
-              alert('Comment link copied to clipboard!');
+              alert('Link copied!');
             }}
             className="hover:text-white flex items-center gap-1.5 transition"
           >
             <Share2 className="w-3.5 h-3.5" /> Share
           </button>
 
-          {/* 3 DOTS REPORT DROPDOWN MENU */}
           <div className="relative">
             <button 
               onClick={() => setActiveMenuId(isMenuOpen ? null : comment.id)}
@@ -314,10 +326,8 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
               </div>
             )}
           </div>
-
         </div>
 
-        {/* INLINE REPLY FORM */}
         {isReplying && (
           <div className="pt-2 pl-2 space-y-2">
             <textarea 
@@ -343,58 +353,78 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
           </div>
         )}
 
-        {/* RECURSIVE REPLIES */}
         {comment.replies && comment.replies.length > 0 && (
           <div className="space-y-2">
-            {comment.replies.map(reply => (
-              <RenderCommentItem key={reply.id} comment={reply} isNested={true} />
-            ))}
+            {comment.replies.map(reply => renderComment(reply, true))}
           </div>
         )}
-
       </div>
     );
   };
 
   return (
-    <div className="min-h-screen bg-[#121212] text-slate-100 font-sans pt-24 pb-20">
+    <div className="min-h-screen bg-[#121212] text-slate-100 font-sans pt-24 pb-20 flex flex-col justify-between selection:bg-blue-500 selection:text-white">
       <Navbar />
 
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 space-y-8 my-auto w-full">
         
         <Link 
-          href="/feed" 
+          href="/profile" 
           className="inline-flex items-center gap-2 text-xs font-bold text-slate-400 hover:text-white transition"
         >
-          <ArrowLeft className="w-4 h-4" /> Back to Discussions
+          <ArrowLeft className="w-4 h-4" /> Back to My Profile
         </Link>
 
         {/* MAIN POST HEADER */}
-        <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-2xl">
-          <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-8 h-8 bg-amber-600/30 text-amber-400 font-bold rounded-lg flex items-center justify-center">
-                DS
-              </span>
-              <span className="font-bold text-white text-base">Divya Singh</span>
-              <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
-                <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-              </span>
-              <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
-                NSUT
-              </span>
+        {postData ? (
+          <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-6 shadow-2xl">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 bg-blue-600 text-white font-black rounded-lg flex items-center justify-center">
+                  {postData.studentName?.substring(0, 2).toUpperCase() || 'ST'}
+                </span>
+                <span className="font-bold text-white text-base">{postData.studentName || 'Student Account'}</span>
+                <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> Verified Live Post
+                </span>
+                {postData.discussionTag && (
+                  <span className="bg-purple-950 text-purple-300 border border-purple-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1 capitalize">
+                    <Tag className="w-3 h-3" /> {postData.discussionTag}
+                  </span>
+                )}
+              </div>
+              <span className="text-slate-400">{postData.datePosted || 'Just now'}</span>
             </div>
-            <span className="text-amber-400 font-bold">Goal Closed!</span>
+
+            <h1 className="text-xl sm:text-2xl font-extrabold text-white leading-tight">
+              {postData.title}
+            </h1>
+
+            {/* MEDIA PREVIEW */}
+            {postData.mediaUrl && (
+              <div className="w-full bg-[#121212] border border-slate-800 rounded-2xl overflow-hidden flex items-center justify-center max-h-[500px]">
+                {postData.mediaType === 'video' ? (
+                  <video src={postData.mediaUrl} controls className="w-full max-h-[500px] object-contain rounded-2xl" />
+                ) : (
+                  <img src={postData.mediaUrl} alt={postData.title} className="w-full max-h-[500px] object-contain rounded-2xl" />
+                )}
+              </div>
+            )}
+
+            {/* FULL STORY SECTION BELOW PHOTO/VIDEO */}
+            {postData.story && (
+              <div className="bg-[#111111] border border-slate-800/80 rounded-2xl p-5 sm:p-6 shadow-inner">
+                <p className="text-slate-200 text-xs sm:text-sm italic leading-relaxed font-sans font-medium whitespace-pre-wrap">
+                  "{postData.story}"
+                </p>
+              </div>
+            )}
           </div>
-
-          <h1 className="text-xl sm:text-2xl font-extrabold text-white leading-tight">
-            Just ₹50 away from my goal — anxiety disorder during exams, exam in 3 days
-          </h1>
-
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed bg-[#121212] p-4 rounded-2xl border border-slate-800/80">
-            "Thank you to the 61 people who already donated. I have medically documented anxiety disorder. Just one small push and I can sit for my back paper."
-          </p>
-        </div>
+        ) : (
+          <div className="bg-[#1E1E1E] rounded-3xl p-8 border border-slate-800 text-center space-y-2">
+            <p className="text-slate-400 text-sm">Loading post details...</p>
+          </div>
+        )}
 
         {/* JOIN DISCUSSION BOX */}
         <div className="bg-[#1E1E1E] rounded-3xl p-6 border border-slate-800 space-y-4 shadow-xl">
@@ -426,11 +456,15 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
             </h2>
           </div>
 
-          <div className="space-y-6">
-            {commentsList.map(comment => (
-              <RenderCommentItem key={comment.id} comment={comment} />
-            ))}
-          </div>
+          {commentsList.length === 0 ? (
+            <div className="text-center py-8 text-slate-500 text-xs">
+              No comments yet. Be the first to start the discussion!
+            </div>
+          ) : (
+            <div className="space-y-6">
+              {commentsList.map(comment => renderComment(comment))}
+            </div>
+          )}
         </div>
 
       </main>
@@ -507,6 +541,7 @@ export default function DiscussionPostPage({ params }: { params: { id: string } 
         </div>
       )}
 
+      {/* <Footer /> */}
     </div>
   );
 }

@@ -4,11 +4,11 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
+import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { 
   FileText, 
   Heart, 
-  Bookmark, 
   Activity, 
   PlusCircle, 
   Trash2, 
@@ -25,24 +25,21 @@ import {
   FileCheck2, 
   LogOut, 
   Building2, 
-  CheckCircle2 
+  CheckCircle2,
+  Image as ImageIcon,
+  Bookmark
 } from 'lucide-react';
-
-interface DonorRecord {
-  id: string;
-  donorName: string;
-  amount: number;
-  date: string;
-  time: string;
-  txId: string;
-}
 
 interface UserPost {
   id: string;
   title: string;
+  story?: string;
   category: 'funding' | 'discussion';
-  discussionTag?: 'confession' | 'request' | 'urgent' | 'gossip' | 'general';
+  discussionTag?: string;
   datePosted: string;
+  studentName?: string;
+  studentEmail?: string;
+  college?: string;
   subjectCode?: string;
   subjectGrade?: string;
   goal?: number;
@@ -50,51 +47,52 @@ interface UserPost {
   status: 'pending_verification' | 'active' | 'rejected';
   rejectionReason?: string;
   commentsCount: number;
-  donors?: DonorRecord[];
+  mediaType?: 'image' | 'video';
+  mediaUrl?: string;
   bankDetails?: {
     upiId: string;
     accountNumber: string;
     ifscCode: string;
   };
+  documents?: {
+    collegeIdUrl?: string;
+    marksheetUrl?: string;
+    feeChallanUrl?: string;
+  };
+}
+
+interface UserDonation {
+  id: string;
+  txId: string;
+  razorpayId: string;
+  donorName: string;
+  studentName: string;
+  studentCollege: string;
+  studentUpi: string;
+  subjectCode: string;
+  campaignTitle: string;
+  amount: number;
+  date: string;
+  time: string;
+  timeAgo: string;
 }
 
 interface ActivityItem {
   id: string;
-  type: 'comment' | 'upvote';
+  type: 'donation' | 'comment' | 'post';
   postTitle: string;
-  postId: string;
+  postId?: string;
   timeAgo: string;
   content?: string;
 }
-
-const INITIAL_ACTIVITIES: ActivityItem[] = [
-  {
-    id: 'act-1',
-    type: 'comment',
-    postTitle: 'Just ₹50 away from my goal — anxiety disorder during exams',
-    postId: 'post-1',
-    timeAgo: '2 hours ago',
-    content: 'Stay strong Divya! Sent ₹50 via UPI. You will clear this easily.'
-  },
-  {
-    id: 'act-2',
-    type: 'upvote',
-    postTitle: 'Cleared my back, got placed at Microsoft, donated ₹5,000 back',
-    postId: 'post-2',
-    timeAgo: '1 day ago'
-  }
-];
 
 export default function ProfilePage() {
   const router = useRouter();
   const { isLoggedIn, currentUser, user, isLoading, logout } = useAuth();
 
-  // STRICT ADMIN ROUTE GUARD: Redirect Admin accounts directly to /admin
   useEffect(() => {
     if (!isLoading) {
-      if (!isLoggedIn) {
-        return; // Handled below in Guest View
-      }
+      if (!isLoggedIn) return;
 
       const userEmail = currentUser?.email?.toLowerCase() || user?.email?.toLowerCase() || '';
       const isAdmin = 
@@ -109,86 +107,80 @@ export default function ProfilePage() {
     }
   }, [isLoggedIn, isLoading, currentUser, user, router]);
 
-  const [activeTab, setActiveTab] = useState<'posts' | 'donations' | 'saved' | 'activity'>('posts');
+  const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'donations' | 'activity'>('posts');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedReceipt, setSelectedReceipt] = useState<any | null>(null);
 
-  // Sample User Posts
-  const [userPosts, setUserPosts] = useState<UserPost[]>([
-    {
-      id: 'post-101',
-      title: 'Need assistance clearing Digital Electronics re-appear fee',
-      category: 'funding',
-      datePosted: '2 hours ago',
-      subjectCode: 'EC-202',
-      subjectGrade: 'F Grade',
-      goal: 2000,
-      raised: 0,
-      status: 'pending_verification',
-      commentsCount: 0,
-      bankDetails: {
-        upiId: 'rohit@okicici',
-        accountNumber: 'XXXX-XXXX-9912',
-        ifscCode: 'SBIN0001234'
-      }
-    },
-    {
-      id: 'post-102',
-      title: 'Signals and Systems Re-appear Exam Fee Support',
-      category: 'funding',
-      datePosted: '1 day ago',
-      subjectCode: 'EC-301',
-      subjectGrade: 'F Grade',
-      goal: 2500,
-      raised: 0,
-      status: 'rejected',
-      rejectionReason: 'Fee receipt image was blurred and roll number was unreadable. Please re-upload a clear copy.',
-      commentsCount: 0,
-      bankDetails: {
-        upiId: 'rohit@okicici',
-        accountNumber: 'XXXX-XXXX-9912',
-        ifscCode: 'SBIN0001234'
-      }
-    },
-    {
-      id: 'post-103',
-      title: 'Condensed Matter Physics Re-appear Exam Fee',
-      category: 'funding',
-      datePosted: '3 days ago',
-      subjectCode: 'EP-204',
-      subjectGrade: 'F Grade',
-      goal: 1800,
-      raised: 1200,
-      status: 'active',
-      commentsCount: 12,
-      bankDetails: {
-        upiId: 'rohit@okicici',
-        accountNumber: 'XXXX-XXXX-9912',
-        ifscCode: 'SBIN0001234'
+  const [userPosts, setUserPosts] = useState<UserPost[]>([]);
+  const [savedPostsList, setSavedPostsList] = useState<UserPost[]>([]);
+  const [donationsList, setDonationsList] = useState<UserDonation[]>([]);
+  const [activitiesList, setActivitiesList] = useState<ActivityItem[]>([]);
+
+  const [selectedReceipt, setSelectedReceipt] = useState<UserDonation | null>(null);
+
+  // LOAD REAL USER DATA FROM LOCALSTORAGE
+  useEffect(() => {
+    // 1. My Posts
+    const saved = localStorage.getItem('user_posts');
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setUserPosts(parsed);
+      } catch (err) {
+        console.error(err);
       }
     }
-  ]);
+
+    // 2. Saved Posts
+    const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
+    const feedPosts = JSON.parse(localStorage.getItem('feed_posts') || '[]');
+    const userPostsAll = JSON.parse(localStorage.getItem('user_posts') || '[]');
+    const combinedAll = [...userPostsAll, ...feedPosts];
+    const uniqueSaved = combinedAll.filter(
+      (p, index, self) => savedIds[p.id] && self.findIndex(t => t.id === p.id) === index
+    );
+    setSavedPostsList(uniqueSaved);
+
+    // 3. Real Donations History (Matching User Request Photo)
+    const userDonations = localStorage.getItem('user_donations');
+    if (userDonations) {
+      try {
+        const parsedDonations = JSON.parse(userDonations);
+        if (Array.isArray(parsedDonations)) setDonationsList(parsedDonations);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    // 4. Real User Activities
+    const userActivities = localStorage.getItem('user_activities');
+    if (userActivities) {
+      try {
+        const parsedActivities = JSON.parse(userActivities);
+        if (Array.isArray(parsedActivities)) setActivitiesList(parsedActivities);
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }, []);
 
   // Form State
   const [newTitle, setNewTitle] = useState('');
   const [newCategory, setNewCategory] = useState<'funding' | 'discussion'>('funding');
-  const [newDiscussionTag, setNewDiscussionTag] = useState<'confession' | 'request' | 'urgent' | 'gossip' | 'general'>('general');
+  const [newDiscussionTag, setNewDiscussionTag] = useState<string>('general');
   const [newSubjectCode, setNewSubjectCode] = useState('');
   const [newSubjectGrade, setNewSubjectGrade] = useState('');
   const [newGoal, setNewGoal] = useState<number>(1000);
   const [newStory, setNewStory] = useState('');
 
-  // Payout Details
+  const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [upiId, setUpiId] = useState('');
   const [accountNumber, setAccountNumber] = useState('');
   const [ifscCode, setIfscCode] = useState('');
 
-  // Document Uploads
   const [collegeIdFile, setCollegeIdFile] = useState<File | null>(null);
   const [resultFile, setResultFile] = useState<File | null>(null);
   const [feeChallanFile, setFeeChallanFile] = useState<File | null>(null);
 
-  // Dynamic Initials Generator
   const getInitials = () => {
     const name = currentUser?.full_name || user?.email || 'User';
     const parts = name.trim().split(' ');
@@ -205,36 +197,122 @@ export default function ProfilePage() {
 
   const handleDeletePost = (postId: string) => {
     if (confirm('Are you sure you want to delete this post?')) {
-      setUserPosts(userPosts.filter(p => p.id !== postId));
+      const updatedUserPosts = userPosts.filter(p => p.id !== postId);
+      setUserPosts(updatedUserPosts);
+      localStorage.setItem('user_posts', JSON.stringify(updatedUserPosts));
+
+      const savedFeed = localStorage.getItem('feed_posts');
+      if (savedFeed) {
+        try {
+          const feedArray = JSON.parse(savedFeed);
+          const updatedFeed = feedArray.filter((p: any) => p.id !== postId);
+          localStorage.setItem('feed_posts', JSON.stringify(updatedFeed));
+        } catch (e) {
+          console.error(e);
+        }
+      }
     }
   };
 
-  const handleCreatePost = (e: React.FormEvent) => {
+  const handleRemoveSavedPost = (postId: string) => {
+    const savedMap = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
+    delete savedMap[postId];
+    localStorage.setItem('saved_posts_map', JSON.stringify(savedMap));
+    setSavedPostsList(savedPostsList.filter(p => p.id !== postId));
+  };
+
+  const convertFileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleCreatePost = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
 
     const isFunding = newCategory === 'funding';
+    const newId = `post-${Date.now()}`;
+
+    let mediaUrl: string | undefined = undefined;
+    let mediaType: 'image' | 'video' | undefined = undefined;
+
+    if (mediaFile) {
+      try {
+        mediaUrl = await convertFileToBase64(mediaFile);
+        mediaType = mediaFile.type.startsWith('video') ? 'video' : 'image';
+      } catch (err) {
+        console.error('Error converting file to Base64', err);
+      }
+    }
+
+    let collegeIdUrl: string | undefined = undefined;
+    let marksheetUrl: string | undefined = undefined;
+    let feeChallanUrl: string | undefined = undefined;
+
+    if (isFunding) {
+      if (collegeIdFile) collegeIdUrl = await convertFileToBase64(collegeIdFile);
+      if (resultFile) marksheetUrl = await convertFileToBase64(resultFile);
+      if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
+    }
 
     const createdPost: UserPost = {
-      id: `post-${Date.now()}`,
+      id: newId,
       title: newTitle,
+      story: newStory,
       category: newCategory,
-      discussionTag: !isFunding ? newDiscussionTag : undefined,
+      discussionTag: !isFunding ? newDiscussionTag : 'Fee Appeal',
       datePosted: 'Just now',
+      studentName: currentUser?.full_name || 'Rohit Dalal',
+      studentEmail: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
+      college: currentUser?.college || 'DTU',
       subjectCode: isFunding ? newSubjectCode : undefined,
       subjectGrade: isFunding ? newSubjectGrade : undefined,
       goal: isFunding ? newGoal : undefined,
       raised: isFunding ? 0 : undefined,
       status: isFunding ? 'pending_verification' : 'active',
       commentsCount: 0,
+      mediaType,
+      mediaUrl,
       bankDetails: isFunding ? {
         upiId,
         accountNumber,
         ifscCode
+      } : undefined,
+      documents: isFunding ? {
+        collegeIdUrl,
+        marksheetUrl,
+        feeChallanUrl
       } : undefined
     };
 
-    setUserPosts([createdPost, ...userPosts]);
+    const updatedUserPosts = [createdPost, ...userPosts];
+    setUserPosts(updatedUserPosts);
+    localStorage.setItem('user_posts', JSON.stringify(updatedUserPosts));
+
+    if (!isFunding) {
+      const savedFeed = localStorage.getItem('feed_posts');
+      let feedArray = savedFeed ? JSON.parse(savedFeed) : [];
+      feedArray = [createdPost, ...feedArray];
+      localStorage.setItem('feed_posts', JSON.stringify(feedArray));
+    }
+
+    // Add Create Post Event to User Activities
+    const activityItem: ActivityItem = {
+      id: `act-${Date.now()}`,
+      type: 'post',
+      postTitle: newTitle,
+      postId: newId,
+      timeAgo: 'Just now',
+      content: `Published new ${isFunding ? 'Fee Appeal' : 'Campus Discussion'} post.`
+    };
+    const updatedActivities = [activityItem, ...activitiesList];
+    setActivitiesList(updatedActivities);
+    localStorage.setItem('user_activities', JSON.stringify(updatedActivities));
+
     setShowCreateModal(false);
 
     setNewTitle('');
@@ -244,14 +322,21 @@ export default function ProfilePage() {
     setUpiId('');
     setAccountNumber('');
     setIfscCode('');
+    setMediaFile(null);
     setCollegeIdFile(null);
     setResultFile(null);
     setFeeChallanFile(null);
+
+    if (isFunding) {
+      alert('Fee appeal submitted! Sent to Admin Portal for document review.');
+    } else {
+      router.push('/feed');
+    }
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#121212] text-slate-100 flex items-center justify-center">
+      <div className="min-h-screen bg-[#121212] text-slate-100 flex items-center justify-center font-sans">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
           <p className="text-xs text-slate-400">Loading Profile Data...</p>
@@ -260,24 +345,26 @@ export default function ProfilePage() {
     );
   }
 
-  // Guest Mode View
   if (!isLoggedIn) {
     return (
-      <div className="min-h-screen bg-[#121212] text-slate-100 font-sans pt-28 pb-20 flex flex-col items-center justify-center px-4">
+      <div className="min-h-screen bg-[#121212] text-slate-100 font-sans pt-28 pb-20 flex flex-col justify-between">
         <Navbar />
-        <div className="bg-[#1E1E1E] border border-slate-800 rounded-3xl p-8 max-w-md w-full text-center space-y-4 shadow-2xl">
-          <ShieldCheck className="w-12 h-12 text-blue-400 mx-auto" />
-          <h1 className="text-2xl font-bold text-white">Guest Mode Active</h1>
-          <p className="text-xs text-slate-400 leading-relaxed">
-            You are currently browsing as a guest. Please sign in or create an account to access your profile dashboard and publish appeals.
-          </p>
-          <Link 
-            href="/login"
-            className="inline-block w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-blue-600/20"
-          >
-            Sign In / Register
-          </Link>
+        <div className="max-w-md mx-auto px-4 w-full my-auto text-center space-y-4">
+          <div className="bg-[#1E1E1E] border border-slate-800 rounded-3xl p-8 space-y-4 shadow-2xl">
+            <ShieldCheck className="w-12 h-12 text-blue-400 mx-auto" />
+            <h1 className="text-2xl font-bold text-white">Guest Mode Active</h1>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              You are currently browsing as a guest. Please sign in or create an account to access your profile dashboard and publish appeals.
+            </p>
+            <Link 
+              href="/login"
+              className="inline-block w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm rounded-xl transition shadow-lg shadow-blue-600/20"
+            >
+              Sign In / Register
+            </Link>
+          </div>
         </div>
+        <Footer />
       </div>
     );
   }
@@ -286,10 +373,10 @@ export default function ProfilePage() {
   const isDonor = currentUser?.role === 'donor';
 
   return (
-    <div className="min-h-screen bg-[#121212] text-slate-100 font-sans selection:bg-blue-500 selection:text-white pt-24 pb-20">
+    <div className="min-h-screen bg-[#121212] text-slate-100 font-sans selection:bg-blue-500 selection:text-white pt-24 pb-20 flex flex-col justify-between">
       <Navbar />
 
-      <main className="max-w-5xl mx-auto px-6 space-y-8">
+      <main className="max-w-5xl mx-auto px-6 space-y-8 w-full my-auto">
         
         {/* PROFILE HEADER */}
         <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-xl">
@@ -352,6 +439,17 @@ export default function ProfilePage() {
           </button>
 
           <button 
+            onClick={() => setActiveTab('saved')}
+            className={`px-4 py-2.5 rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
+              activeTab === 'saved' 
+                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' 
+                : 'text-slate-400 hover:text-white bg-[#1E1E1E] border border-slate-800'
+            }`}
+          >
+            <Bookmark className="w-4 h-4 text-amber-400" /> Saved Posts ({savedPostsList.length})
+          </button>
+
+          <button 
             onClick={() => setActiveTab('donations')}
             className={`px-4 py-2.5 rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
               activeTab === 'donations' 
@@ -359,7 +457,7 @@ export default function ProfilePage() {
                 : 'text-slate-400 hover:text-white bg-[#1E1E1E] border border-slate-800'
             }`}
           >
-            <Heart className="w-4 h-4 text-rose-400" /> Donations Made
+            <Heart className="w-4 h-4 text-rose-400" /> Donations Made ({donationsList.length})
           </button>
 
           <button 
@@ -370,18 +468,7 @@ export default function ProfilePage() {
                 : 'text-slate-400 hover:text-white bg-[#1E1E1E] border border-slate-800'
             }`}
           >
-            <Activity className="w-4 h-4 text-amber-400" /> Recent Activity
-          </button>
-
-          <button 
-            onClick={() => setActiveTab('saved')}
-            className={`px-4 py-2.5 rounded-xl transition flex items-center gap-2 whitespace-nowrap ${
-              activeTab === 'saved' 
-                ? 'bg-blue-600 text-white shadow-md shadow-blue-600/20' 
-                : 'text-slate-400 hover:text-white bg-[#1E1E1E] border border-slate-800'
-            }`}
-          >
-            <Bookmark className="w-4 h-4 text-purple-400" /> Saved Posts
+            <Activity className="w-4 h-4 text-blue-400" /> Recent Activity
           </button>
         </div>
 
@@ -403,11 +490,10 @@ export default function ProfilePage() {
               </div>
             ) : (
               userPosts.map(post => {
-                const exactRoute = post.category === 'funding' ? `/donate/${post.id}` : `/post/${post.id}`;
+                const exactRoute = `/post/${post.id}`;
 
                 return (
-                  <div key={post.id} className="bg-[#1E1E1E] rounded-2xl p-6 border border-slate-800 space-y-5 shadow-lg">
-                    
+                  <div key={post.id} className="bg-[#1E1E1E] rounded-2xl p-6 border border-slate-800 space-y-4 shadow-lg">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex items-center gap-2">
                         <span className={`px-2.5 py-0.5 rounded-md font-bold text-xs uppercase ${
@@ -473,24 +559,15 @@ export default function ProfilePage() {
                       )}
                     </h3>
 
-                    {post.status === 'pending_verification' && (
-                      <div className="bg-amber-950/30 border border-amber-800/60 p-4 rounded-xl text-xs text-amber-300 space-y-2">
-                        <p className="font-bold flex items-center gap-1.5 text-amber-200">
-                          <AlertCircle className="w-4 h-4 text-amber-400" /> Bank & Document Verification Pending
-                        </p>
-                        <p className="text-slate-400 leading-relaxed">
-                          Your uploaded marksheet and bank account details ({post.bankDetails?.upiId}) are currently being verified by admin. Upon approval, your appeal will become live.
-                        </p>
+                    {post.mediaUrl && (
+                      <div className="w-full bg-[#121212] border border-slate-800/80 rounded-2xl overflow-hidden flex items-center justify-center max-h-[500px]">
+                        {post.mediaType === 'video' ? (
+                          <video src={post.mediaUrl} controls className="w-full max-h-[500px] object-contain rounded-2xl" />
+                        ) : (
+                          <img src={post.mediaUrl} alt={post.title} className="w-full max-h-[500px] object-contain rounded-2xl" />
+                        )}
                       </div>
                     )}
-
-                    {post.status === 'rejected' && post.rejectionReason && (
-                      <div className="bg-rose-950/40 border border-rose-800/80 p-4 rounded-xl text-xs text-rose-300 space-y-1">
-                        <span className="font-bold uppercase tracking-wider block text-rose-200">Admin Rejection Reason:</span>
-                        <p className="leading-relaxed">{post.rejectionReason}</p>
-                      </div>
-                    )}
-
                   </div>
                 );
               })
@@ -498,108 +575,168 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* TAB 2: DONATIONS MADE */}
-        {activeTab === 'donations' && (
-          <div className="bg-[#1E1E1E] rounded-2xl p-6 border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Receipt className="w-5 h-5 text-blue-400" /> My Contribution History
-            </h3>
-            <p className="text-xs text-slate-400">
-              Official 0% commission records of funds transferred directly to fellow Delhi students.
-            </p>
-
-            <div className="space-y-3 pt-2">
-              <div className="bg-[#121212] p-4 rounded-xl border border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs">
-                <div className="space-y-1">
-                  <span className="text-emerald-400 font-bold bg-emerald-950 px-2 py-0.5 rounded text-[10px]">100% DIRECT TRANSFER</span>
-                  <p className="font-bold text-white text-sm">Divya Singh (NSUT) - Digital Electronics Back Fee</p>
-                  <p className="text-slate-400">Transaction Ref: <span className="font-mono text-slate-300">CB-DIRECT-68291469</span> • 2 hours ago</p>
-                </div>
-                <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800 pt-2 sm:pt-0">
-                  <span className="text-base font-extrabold text-white">₹50.00</span>
-                  <button 
-                    onClick={() => setSelectedReceipt({
-                      txId: 'CB-DIRECT-68291469',
-                      razorpayId: 'pay_direct_vphei6x7b',
-                      amount: 50,
-                      date: '31 July 2026',
-                      time: '03:05:11 PM',
-                      donorName: currentUser?.full_name || 'Rohit Dalal',
-                      studentName: 'Divya Singh',
-                      college: 'NSUT (Netaji Subhas University of Technology)',
-                      upiId: 'divyasingh@okicici',
-                      subjectCode: 'EC-202'
-                    })}
-                    className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold text-xs transition shadow-md shadow-blue-600/20"
-                  >
-                    View Receipt
-                  </button>
-                </div>
+        {/* TAB 2: SAVED POSTS */}
+        {activeTab === 'saved' && (
+          <div className="space-y-6">
+            {savedPostsList.length === 0 ? (
+              <div className="bg-[#1E1E1E] rounded-2xl p-12 border border-slate-800 text-center space-y-3">
+                <Bookmark className="w-8 h-8 text-amber-500 mx-auto" />
+                <p className="text-slate-400 text-sm">You haven't saved any posts yet.</p>
+                <Link 
+                  href="/feed" 
+                  className="inline-block px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl shadow-lg shadow-blue-600/20"
+                >
+                  Explore Campus Feed
+                </Link>
               </div>
-            </div>
+            ) : (
+              savedPostsList.map(post => (
+                <div key={post.id} className="bg-[#1E1E1E] rounded-2xl p-6 border border-slate-800 space-y-4 shadow-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="font-bold text-white">{post.studentName || 'Student'}</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-slate-400">{post.college || 'DTU'}</span>
+                      <span className="text-slate-500">•</span>
+                      <span className="text-slate-400">{post.datePosted}</span>
+                    </div>
+
+                    <button 
+                      onClick={() => handleRemoveSavedPost(post.id)}
+                      className="text-xs text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1 bg-rose-950/40 border border-rose-900/60 px-3 py-1 rounded-lg"
+                    >
+                      <X className="w-3.5 h-3.5" /> Remove from Saved
+                    </button>
+                  </div>
+
+                  <h3 className="text-base sm:text-lg font-bold text-white">
+                    <Link href={`/post/${post.id}`} className="hover:text-blue-400 transition">
+                      {post.title}
+                    </Link>
+                  </h3>
+
+                  {post.story && (
+                    <p className="text-xs text-slate-300 italic bg-[#121212] p-3 rounded-xl border border-slate-800/80">
+                      "{post.story}"
+                    </p>
+                  )}
+
+                  <div className="flex justify-end pt-2">
+                    <Link 
+                      href={`/post/${post.id}`}
+                      className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition shadow-md shadow-blue-600/20"
+                    >
+                      Open Full Discussion →
+                    </Link>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         )}
 
-        {/* TAB 3: RECENT ACTIVITY */}
+        {/* TAB 3: DONATIONS MADE (MATCHING USER SCREENSHOT EXACTLY) */}
+        {activeTab === 'donations' && (
+          <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-2xl">
+            <div className="space-y-1">
+              <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                <Receipt className="w-5 h-5 text-blue-400" /> My Contribution History
+              </h3>
+              <p className="text-xs text-slate-400">
+                Official 0% commission records of funds transferred directly to fellow Delhi students.
+              </p>
+            </div>
+
+            {donationsList.length === 0 ? (
+              <div className="bg-[#121212] rounded-2xl p-8 border border-slate-800 text-center space-y-2">
+                <Heart className="w-8 h-8 text-slate-500 mx-auto" />
+                <p className="text-slate-400 text-xs">No donations made yet. Support a fellow student today!</p>
+                <Link href="/feed?category=funding" className="inline-block mt-2 px-4 py-2 bg-blue-600 text-white font-bold text-xs rounded-xl">
+                  View Verified Appeals
+                </Link>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-2">
+                {donationsList.map((tx) => (
+                  <div 
+                    key={tx.id} 
+                    className="bg-[#121212] p-4 sm:p-5 rounded-2xl border border-slate-800/90 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs"
+                  >
+                    <div className="space-y-1.5">
+                      <span className="text-emerald-400 font-bold bg-emerald-950/80 px-2.5 py-0.5 rounded text-[10px] border border-emerald-800/80">
+                        100% DIRECT TRANSFER
+                      </span>
+                      <p className="font-extrabold text-white text-sm sm:text-base">
+                        {tx.studentName} ({tx.studentCollege}) - {tx.campaignTitle || tx.subjectCode}
+                      </p>
+                      <p className="text-slate-400 font-mono text-[11px]">
+                        Transaction Ref: <span className="text-slate-300 font-semibold">{tx.txId}</span> • {tx.timeAgo || tx.date}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-end border-t sm:border-t-0 border-slate-800/80 pt-3 sm:pt-0">
+                      <span className="text-lg font-black text-white">₹{tx.amount}.00</span>
+                      <button 
+                        onClick={() => setSelectedReceipt(tx)}
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs transition shadow-md shadow-blue-600/20 active:scale-95"
+                      >
+                        View Receipt
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* TAB 4: RECENT ACTIVITY (REAL USER ACTIVITY LOG) */}
         {activeTab === 'activity' && (
-          <div className="bg-[#1E1E1E] rounded-2xl p-6 border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
+          <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-2xl">
+            <h3 className="text-lg font-bold text-white flex items-center gap-2">
               <Activity className="w-5 h-5 text-amber-400" /> Platform Interactions
             </h3>
 
-            <div className="space-y-3">
-              {INITIAL_ACTIVITIES.map(act => (
-                <div key={act.id} className="bg-[#121212] p-4 rounded-xl border border-slate-800/80 space-y-1.5 text-xs">
-                  <div className="flex items-center justify-between text-slate-400">
-                    <span className="font-semibold text-slate-300 flex items-center gap-1.5">
-                      {act.type === 'comment' ? <MessageSquare className="w-3.5 h-3.5 text-blue-400" /> : <ThumbsUp className="w-3.5 h-3.5 text-amber-400" />}
-                      {act.type === 'comment' ? 'Commented on' : 'Upvoted'}
-                    </span>
-                    <span>{act.timeAgo}</span>
-                  </div>
-                  <Link href={`/post/${act.postId}`} className="font-bold text-white hover:text-blue-400 transition block text-sm">
-                    "{act.postTitle}"
-                  </Link>
-                  {act.content && (
-                    <p className="text-slate-300 italic bg-[#181818] p-2.5 rounded-lg border border-slate-800">
-                      "{act.content}"
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* TAB 4: SAVED POSTS */}
-        {activeTab === 'saved' && (
-          <div className="bg-[#1E1E1E] rounded-2xl p-6 border border-slate-800 space-y-4">
-            <h3 className="text-base font-bold text-white flex items-center gap-2">
-              <Bookmark className="w-5 h-5 text-purple-400" /> Bookmarked Discussions
-            </h3>
-
-            <div className="bg-[#121212] p-4 rounded-xl border border-slate-800/80 flex items-center justify-between text-xs">
-              <div className="space-y-1">
-                <span className="text-blue-400 font-bold bg-blue-950 px-2 py-0.5 rounded text-[10px]">DTU Discussion</span>
-                <p className="font-bold text-white text-sm">Which DEC is better for 5th Sem Engineering Physics: Quantum Optics or Solid State?</p>
-                <p className="text-slate-400">Saved 3 days ago • 18 Comments</p>
+            {activitiesList.length === 0 ? (
+              <div className="bg-[#121212] rounded-2xl p-8 border border-slate-800 text-center text-xs text-slate-400">
+                No recent activity recorded yet.
               </div>
-              <Link 
-                href="/post/post-3" 
-                className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-white rounded-lg font-semibold transition shrink-0"
-              >
-                Open
-              </Link>
-            </div>
+            ) : (
+              <div className="space-y-3">
+                {activitiesList.map(act => (
+                  <div key={act.id} className="bg-[#121212] p-4 rounded-2xl border border-slate-800/80 space-y-1.5 text-xs">
+                    <div className="flex items-center justify-between text-slate-400">
+                      <span className="font-bold text-slate-300 flex items-center gap-1.5">
+                        {act.type === 'donation' && <Heart className="w-3.5 h-3.5 text-rose-400 fill-rose-400/20" />}
+                        {act.type === 'comment' && <MessageSquare className="w-3.5 h-3.5 text-blue-400" />}
+                        {act.type === 'post' && <FileText className="w-3.5 h-3.5 text-emerald-400" />}
+                        <span className="capitalize">{act.type} Activity</span>
+                      </span>
+                      <span>{act.timeAgo}</span>
+                    </div>
+
+                    <p className="font-extrabold text-white text-sm">
+                      "{act.postTitle}"
+                    </p>
+
+                    {act.content && (
+                      <p className="text-slate-300 italic bg-[#181818] p-2.5 rounded-xl border border-slate-800">
+                        {act.content}
+                      </p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
       </main>
 
-      {/* FULL MATCH RECEIPT PRINT MODAL */}
+      {/* RECEIPT PRINT MODAL */}
       {selectedReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-white text-slate-900 rounded-[2.5rem] p-8 sm:p-10 max-w-2xl w-full space-y-6 shadow-2xl relative my-8 print:p-0 print:border-none print:shadow-none font-sans border border-slate-200">
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto font-sans">
+          <div className="bg-white text-slate-900 rounded-[2.5rem] p-8 sm:p-10 max-w-2xl w-full space-y-6 shadow-2xl relative my-8 border border-slate-200 print:p-0 print:border-none print:shadow-none print:my-0">
             
             <button 
               onClick={() => setSelectedReceipt(null)}
@@ -620,11 +757,11 @@ export default function ProfilePage() {
               </div>
 
               <div className="text-right space-y-1">
-                <span className="inline-block bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-[11px] px-3 py-1 rounded-full uppercase tracking-wider">
+                <span className="inline-block bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-[11px] px-3.5 py-1 rounded-full uppercase tracking-wider">
                   DIRECT PAYMENT SLIP
                 </span>
                 <p className="text-xs font-mono text-slate-500 pt-1">
-                  Receipt ID: <span className="font-bold text-slate-700">{selectedReceipt.txId || 'CB-DIRECT-68291469'}</span>
+                  Receipt ID: <span className="font-bold text-slate-700">{selectedReceipt.txId}</span>
                 </p>
               </div>
             </div>
@@ -632,15 +769,15 @@ export default function ProfilePage() {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 text-xs">
               <div>
                 <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">DATE</span>
-                <span className="font-extrabold text-slate-900 text-sm">{selectedReceipt.date || '31 July 2026'}</span>
+                <span className="font-extrabold text-slate-900 text-sm">{selectedReceipt.date}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">TIME</span>
-                <span className="font-extrabold text-slate-900 text-sm">{selectedReceipt.time || '03:05:11 PM'}</span>
+                <span className="font-extrabold text-slate-900 text-sm">{selectedReceipt.time}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">GATEWAY REF</span>
-                <span className="font-mono font-semibold text-slate-700 truncate block text-xs">{selectedReceipt.razorpayId || 'pay_direct_vphei6x7b'}</span>
+                <span className="font-mono font-semibold text-slate-700 truncate block text-xs">{selectedReceipt.razorpayId}</span>
               </div>
               <div>
                 <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">PAYOUT FEE</span>
@@ -654,7 +791,7 @@ export default function ProfilePage() {
                   DONOR DETAILS
                 </h4>
                 <div className="space-y-1">
-                  <p><span className="font-bold text-slate-700">Name:</span> <span className="font-mono text-slate-900">{selectedReceipt.donorName || 'Rohit Dalal'}</span></p>
+                  <p><span className="font-bold text-slate-700">Name:</span> <span className="font-mono text-slate-900">{selectedReceipt.donorName}</span></p>
                   <p><span className="font-bold text-slate-700">Payment Route:</span> <span className="text-slate-800">Direct Razorpay UPI/Card</span></p>
                 </div>
               </div>
@@ -664,9 +801,9 @@ export default function ProfilePage() {
                   DIRECT STUDENT BENEFICIARY
                 </h4>
                 <div className="space-y-1">
-                  <p><span className="font-bold text-slate-700">Student:</span> <span className="font-bold text-slate-900">{selectedReceipt.studentName || 'Divya Singh'}</span></p>
-                  <p className="leading-snug"><span className="font-bold text-slate-700">College:</span> <span className="text-slate-800">{selectedReceipt.college || 'NSUT (Netaji Subhas University of Technology)'}</span></p>
-                  <p><span className="font-bold text-slate-700">Student UPI/VPA:</span> <span className="font-mono text-slate-900">{selectedReceipt.upiId || 'divyasingh@okicici'}</span></p>
+                  <p><span className="font-bold text-slate-700">Student:</span> <span className="font-bold text-slate-900">{selectedReceipt.studentName}</span></p>
+                  <p className="leading-snug"><span className="font-bold text-slate-700">College:</span> <span className="text-slate-800">{selectedReceipt.studentCollege}</span></p>
+                  <p><span className="font-bold text-slate-700">Student UPI/VPA:</span> <span className="font-mono text-slate-900">{selectedReceipt.studentUpi}</span></p>
                 </div>
               </div>
             </div>
@@ -682,9 +819,9 @@ export default function ProfilePage() {
                 <tbody className="divide-y divide-slate-100 text-slate-800 font-medium">
                   <tr>
                     <td className="py-3 font-semibold text-slate-900">
-                      Direct Exam Re-Appear Fee Contribution ({selectedReceipt.subjectCode || 'EC-202'})
+                      Direct Exam Re-Appear Fee Contribution ({selectedReceipt.subjectCode})
                     </td>
-                    <td className="py-3 text-right font-bold text-slate-900">₹{selectedReceipt.amount || 50}.00</td>
+                    <td className="py-3 text-right font-bold text-slate-900">₹{selectedReceipt.amount}.00</td>
                   </tr>
                   <tr className="text-slate-400 italic">
                     <td className="py-2">comeBACK Platform Fee</td>
@@ -695,7 +832,7 @@ export default function ProfilePage() {
 
               <div className="border-t-2 border-slate-900 pt-3 flex justify-between items-center">
                 <span className="font-black text-base text-slate-900">Total Direct Transfer to Student</span>
-                <span className="font-black text-2xl text-blue-600">₹{selectedReceipt.amount || 50}.00</span>
+                <span className="font-black text-2xl text-blue-600">₹{selectedReceipt.amount}.00</span>
               </div>
             </div>
 
@@ -710,7 +847,7 @@ export default function ProfilePage() {
 
               <div className="text-right space-y-0.5">
                 <p className="font-black text-slate-900 text-sm">Rohit Dalal</p>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">Platform Manager • comeBACK</p>
+                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">PLATFORM MANAGER • COMEBACK</p>
               </div>
             </div>
 
@@ -736,7 +873,7 @@ export default function ProfilePage() {
 
       {/* CREATE POST MODAL */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 font-sans">
           <div className="bg-[#1E1E1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full max-h-[88vh] overflow-y-auto space-y-6 shadow-2xl relative scrollbar-thin scrollbar-thumb-slate-700">
             
             <button 
@@ -748,13 +885,13 @@ export default function ProfilePage() {
 
             <div className="space-y-1">
               <h2 className="text-xl font-bold text-white">Create New Post or Fee Appeal</h2>
-              <p className="text-xs text-slate-400">100% of donations go directly to your verified bank account.</p>
+              <p className="text-xs text-slate-400">Share a campus discussion or submit a verified fee appeal.</p>
             </div>
 
             <form onSubmit={handleCreatePost} className="space-y-4 text-xs sm:text-sm">
               
               <div className="space-y-1.5">
-                <label className="font-semibold text-slate-300">Post Category</label>
+                <label className="font-semibold text-slate-300">Post Type</label>
                 <div className="grid grid-cols-2 gap-2">
                   <button 
                     type="button"
@@ -781,6 +918,25 @@ export default function ProfilePage() {
                 </div>
               </div>
 
+              {newCategory === 'discussion' && (
+                <div className="space-y-1.5">
+                  <label className="font-semibold text-slate-300">Discussion Category *</label>
+                  <select
+                    value={newDiscussionTag}
+                    onChange={(e: any) => setNewDiscussionTag(e.target.value)}
+                    className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl p-3 focus:outline-none capitalize"
+                  >
+                    <option value="general">💬 General Discussion</option>
+                    <option value="confession">🤫 Confession</option>
+                    <option value="complaint">⚠️ Complaint</option>
+                    <option value="question">❓ Question</option>
+                    <option value="request">🤝 Request</option>
+                    <option value="urgent">🚨 Urgent</option>
+                    <option value="gossip">☕ Gossip</option>
+                  </select>
+                </div>
+              )}
+
               <div className="space-y-1.5">
                 <label className="font-semibold text-slate-300">Title *</label>
                 <input 
@@ -788,9 +944,27 @@ export default function ProfilePage() {
                   required
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  placeholder="e.g. Need assistance clearing Digital Electronics re-appear fee..."
+                  placeholder="e.g. Attendance policy in 3rd semester is impossible..."
                   className="w-full bg-[#121212] border border-slate-800 focus:border-blue-500 text-white rounded-xl p-3 focus:outline-none"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <label className="font-semibold text-slate-300 block">Attach Media (Photo / Video)</label>
+                <div className="bg-[#121212] p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <span className="text-slate-400 text-xs truncate max-w-[200px]">
+                    {mediaFile ? mediaFile.name : 'Choose Photo or Video File'}
+                  </span>
+                  <label className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shrink-0">
+                    <ImageIcon className="w-3.5 h-3.5" /> Upload File
+                    <input 
+                      type="file" 
+                      accept="image/*,video/*" 
+                      onChange={(e) => setMediaFile(e.target.files?.[0] || null)} 
+                      className="hidden" 
+                    />
+                  </label>
+                </div>
               </div>
 
               {newCategory === 'funding' && (
@@ -882,7 +1056,7 @@ export default function ProfilePage() {
                   </div>
 
                   <div className="space-y-2 pt-2 border-t border-slate-800 text-xs">
-                    <label className="font-bold text-slate-300 block">Mandatory Document Proofs</label>
+                    <label className="font-bold text-slate-300 block">Mandatory Document Proofs (JPG / PNG / PDF)</label>
                     
                     <div className="bg-[#181818] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
                       <span className="text-slate-400">1. College Student ID:</span>
@@ -913,7 +1087,7 @@ export default function ProfilePage() {
               )}
 
               <div className="space-y-1.5">
-                <label className="font-semibold text-slate-300">Full Story / Details *</label>
+                <label className="font-semibold text-slate-300">Full Details / Story *</label>
                 <textarea 
                   required
                   value={newStory}
@@ -935,7 +1109,7 @@ export default function ProfilePage() {
                   type="submit"
                   className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg shadow-blue-600/20"
                 >
-                  {newCategory === 'funding' ? 'Submit Appeal for Verification' : 'Publish Discussion'}
+                  {newCategory === 'funding' ? 'Submit Appeal for Verification' : 'Publish Post'}
                 </button>
               </div>
 
@@ -944,6 +1118,7 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* <Footer /> */}
     </div>
   );
 }
