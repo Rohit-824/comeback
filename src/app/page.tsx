@@ -23,8 +23,9 @@ import {
 
 export default function ComeBackHomePage() {
   const [activeTab, setActiveTab] = useState<'all' | 'verified' | 'success'>('all');
+  const [dynamicPosts, setDynamicPosts] = useState<any[]>([]);
 
-  // Real Dynamic Stats State (Starting at 0 / Pure Actual Data)
+  // Real Dynamic Stats State
   const [stats, setStats] = useState({
     studentsBacked: 0,
     feesRaised: 0,
@@ -41,10 +42,15 @@ export default function ComeBackHomePage() {
     const feedPosts = JSON.parse(localStorage.getItem('feed_posts') || '[]');
 
     const allPosts = [...userPosts, ...feedPosts];
+    // Remove duplicates based on ID
     const uniquePosts = allPosts.filter((p, index, self) => self.findIndex(t => t.id === p.id) === index);
+    
+    // Take the top 3 most recent posts for the home page
+    setDynamicPosts(uniquePosts.slice(0, 3));
+
     const activeAppealsCount = uniquePosts.filter((p: any) => p.category === 'funding').length;
 
-    // 2. Real calculated data with zero baseline offset
+    // 2. Real calculated data
     const totalRaisedFromTx = transactions.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0);
     const uniqueDonorsCount = new Set(transactions.map((tx: any) => tx.donorEmail || tx.donorName)).size;
 
@@ -52,7 +58,7 @@ export default function ComeBackHomePage() {
       studentsBacked: activeAppealsCount + transactions.length,
       feesRaised: totalRaisedFromTx,
       passSuccess: '96.4%',
-      donorsJoined: uniqueDonorsCount,
+      donorsJoined: uniqueDonorsCount || 1,
       topCampuses: 4,
       verifiedSlips: '100%'
     });
@@ -67,6 +73,13 @@ export default function ComeBackHomePage() {
     }
     return `₹${amount}`;
   };
+
+  // Filter posts based on active tab
+  const filteredPosts = dynamicPosts.filter((post) => {
+    if (activeTab === 'verified') return post.category === 'funding';
+    if (activeTab === 'success') return post.category === 'success' || post.title?.toLowerCase().includes('success') || post.title?.toLowerCase().includes('cleared');
+    return true; // 'all'
+  });
 
   return (
     <div className="bg-[#121212] text-slate-100 font-sans selection:bg-blue-500 selection:text-white min-h-screen flex flex-col justify-between">
@@ -209,7 +222,7 @@ export default function ComeBackHomePage() {
           </div>
         </section>
 
-        {/* SECTION 4: LIVE APPEALS & DISCUSSIONS */}
+        {/* SECTION 4: LIVE APPEALS & DISCUSSIONS (TOP 3 DYNAMIC POSTS) */}
         <section id="posts" className="py-20 px-6 border-b border-slate-800/50 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -240,206 +253,94 @@ export default function ComeBackHomePage() {
           </div>
 
           <div className="space-y-6">
-            
-            {/* POST 1: FEE APPEAL */}
-            {(activeTab === 'all' || activeTab === 'verified') && (
-              <div className="bg-[#1E1E1E] rounded-2xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-lg">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-amber-600/30 text-amber-400 font-bold rounded-lg flex items-center justify-center">DS</span>
-                    <span className="font-bold text-white text-base">Divya Singh</span>
-                    <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> Verified
-                    </span>
-                    <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
-                      NSUT
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <span className="bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold px-2.5 py-0.5 rounded-md text-xs">
-                      ₹50 left!
-                    </span>
-                    <span className="text-slate-400 text-xs">1 day ago</span>
-                  </div>
-                </div>
-
-                <h3 className="text-lg font-bold text-white">
-                  Just ₹50 away from my goal — anxiety disorder during exams, exam in 3 days
-                </h3>
-
-                <p className="text-sm text-slate-300 italic bg-[#121212] p-4 rounded-xl border border-slate-800/80 leading-relaxed">
-                  "Thank you to the 61 people who already donated. I have medically documented anxiety disorder. Just one small push and I can sit for my back paper."
-                </p>
-
-                <div className="space-y-2 pt-1">
-                  <div className="flex justify-between items-baseline text-sm">
-                    <span className="font-black text-white text-base">₹1,950 <span className="text-xs font-normal text-slate-400">raised of ₹2,000</span></span>
-                    <span className="text-amber-400 font-bold text-xs">97.5% Funded</span>
-                  </div>
-                  <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
-                    <div className="bg-amber-400 h-full w-[97.5%]" />
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-400 pt-0.5">
-                    <span>61 donors</span>
-                    <span>3 days left</span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href="/post/post-1" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <MessageSquare className="w-4 h-4" /> 44 comments
-                    </Link>
-                    <Link 
-                      href="/post/post-1" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <ExternalLink className="w-4 h-4" /> Full post
-                    </Link>
-                    <button className="p-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition">
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href="/post/post-1" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <Users className="w-4 h-4" /> Join discussion
-                    </Link>
-                    <Link 
-                      href="/donate/post-1" 
-                      className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20 active:scale-95"
-                    >
-                      Donate ₹50 →
-                    </Link>
-                  </div>
-                </div>
+            {filteredPosts.length === 0 ? (
+              <div className="bg-[#1E1E1E] rounded-2xl p-8 text-center border border-slate-800 space-y-3">
+                <p className="text-slate-400 text-sm">No posts found in this category yet.</p>
+                <Link href="/post" className="inline-block px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">
+                  Create a Post
+                </Link>
               </div>
+            ) : (
+              filteredPosts.map((post: any) => {
+                const isFunding = post.category === 'funding';
+                const goal = post.goal || 2000;
+                const raised = post.raised || 0;
+                const percentage = Math.min(100, Math.round((raised / goal) * 100));
+                const authorInitials = (post.studentName || post.author || 'User').substring(0, 2).toUpperCase();
+
+                return (
+                  <div key={post.id} className={`bg-[#1E1E1E] rounded-2xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-lg ${isFunding ? 'border-l-4 border-l-amber-500' : ''}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 bg-blue-600/30 text-blue-400 font-bold rounded-lg flex items-center justify-center">{authorInitials}</span>
+                        <span className="font-bold text-white text-base">{post.studentName || post.author || 'Anonymous Student'}</span>
+                        <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
+                          <CheckCircle2 className="w-3.5 h-3.5" /> Verified
+                        </span>
+                        <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
+                          {post.college || 'DTU'}
+                        </span>
+                      </div>
+                      <span className="text-slate-400 text-xs">{post.datePosted || 'Recently'}</span>
+                    </div>
+
+                    <h3 className="text-lg font-bold text-white">
+                      {post.title}
+                    </h3>
+
+                    <p className="text-sm text-slate-300 bg-[#121212] p-4 rounded-xl border border-slate-800/80 leading-relaxed italic">
+                      &ldquo;{post.story || post.content || 'Supporting community member appeal.'}&rdquo;
+                    </p>
+
+                    {isFunding && (
+                      <div className="space-y-2 pt-1">
+                        <div className="flex justify-between items-baseline text-sm">
+                          <span className="font-black text-white text-base">₹{raised} <span className="text-xs font-normal text-slate-400">raised of ₹{goal}</span></span>
+                          <span className="text-amber-400 font-bold text-xs">{percentage}% Funded</span>
+                        </div>
+                        <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">
+                          <div className="bg-amber-400 h-full" style={{ width: `${percentage}%` }} />
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <div className="flex items-center gap-2">
+                        <Link 
+                          href={`/post/${post.id}`} 
+                          className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
+                        >
+                          <MessageSquare className="w-4 h-4 text-blue-400" /> Comments
+                        </Link>
+                        <Link 
+                          href={`/post/${post.id}`} 
+                          className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
+                        >
+                          <ExternalLink className="w-4 h-4" /> Full post
+                        </Link>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <Link 
+                          href={`/post/${post.id}`} 
+                          className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
+                        >
+                          <Users className="w-4 h-4" /> Join discussion
+                        </Link>
+                        {isFunding && (
+                          <Link 
+                            href={`/donate/${post.id}`} 
+                            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-md shadow-blue-600/20 active:scale-95"
+                          >
+                            Support ₹50 →
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
             )}
-
-            {/* POST 2: REGULAR DISCUSSION */}
-            {activeTab === 'all' && (
-              <div className="bg-[#1E1E1E] rounded-2xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-lg">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-blue-600/30 text-blue-400 font-bold rounded-lg flex items-center justify-center">RD</span>
-                    <span className="font-bold text-white text-base">Rohit Dalal</span>
-                    <span className="bg-purple-950 text-purple-300 border border-purple-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
-                      General Request
-                    </span>
-                    <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
-                      DTU
-                    </span>
-                  </div>
-                  <span className="text-slate-400 text-xs">5 hours ago</span>
-                </div>
-
-                <h3 className="text-lg font-bold text-white">
-                  Which DEC subject is best for 5th Sem Engineering Physics: Quantum Optics or Condensed Matter II?
-                </h3>
-
-                <p className="text-sm text-slate-300 bg-[#121212] p-4 rounded-xl border border-slate-800/80 leading-relaxed">
-                  "Looking for advice from senior 4th year EP students. Need to decide which elective has better grade distribution and manageable lab requirements for the upcoming semester."
-                </p>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href="/post/post-2" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <MessageSquare className="w-4 h-4 text-blue-400" /> 267 comments
-                    </Link>
-                    <Link 
-                      href="/post/post-2" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <ExternalLink className="w-4 h-4" /> Full post
-                    </Link>
-                    <button className="p-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition">
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href="/post/post-2" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <Users className="w-4 h-4" /> Join discussion
-                    </Link>
-                    <button className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition">
-                      <Bookmark className="w-4 h-4" /> Save
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* POST 3: SUCCESS STORY */}
-            {(activeTab === 'all' || activeTab === 'success') && (
-              <div className="bg-[#1E1E1E] rounded-2xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-lg border-l-4 border-l-emerald-500">
-                <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="w-8 h-8 bg-emerald-600/30 text-emerald-400 font-bold rounded-lg flex items-center justify-center">AK</span>
-                    <span className="font-bold text-white text-base">Arjun Kumar</span>
-                    <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
-                      <Trophy className="w-3.5 h-3.5" /> Comeback Story
-                    </span>
-                    <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
-                      IGDTUW
-                    </span>
-                  </div>
-                  <span className="text-slate-400 text-xs">2 days ago</span>
-                </div>
-
-                <h3 className="text-lg font-bold text-white">
-                  Cleared my re-appear exam, got placed, and now donated ₹5,000 back to comeBACK!
-                </h3>
-
-                <p className="text-sm text-slate-300 bg-[#121212] p-4 rounded-xl border border-slate-800/80 leading-relaxed italic">
-                  "Last year, I raised ₹2,500 here to pay my back fee for Signals & Systems. Today, I cleared my degree and joined as a Software Engineer. Just sent ₹5,000 to clear fees for two juniors."
-                </p>
-
-                <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href="/post/post-3" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <MessageSquare className="w-4 h-4 text-emerald-400" /> 89 comments
-                    </Link>
-                    <Link 
-                      href="/post/post-3" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <ExternalLink className="w-4 h-4" /> Full post
-                    </Link>
-                    <button className="p-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 transition">
-                      <Share2 className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <Link 
-                      href="/post/post-3" 
-                      className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition"
-                    >
-                      <Users className="w-4 h-4" /> Join discussion
-                    </Link>
-                    <button className="px-4 py-2.5 bg-[#121212] hover:bg-slate-800 text-slate-300 rounded-xl text-xs font-semibold border border-slate-800 flex items-center gap-2 transition">
-                      <Bookmark className="w-4 h-4" /> Save
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
           </div>
 
           {/* REDIRECT LOAD MORE BUTTON */}

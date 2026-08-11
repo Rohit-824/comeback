@@ -1,8 +1,14 @@
 import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
+    // Lazy-initialize inside the handler function to prevent static build crash
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
+    );
+
     const { role, fullName, email, password, college, branch, year, rollNumber, occupation } = await req.json();
 
     if (!role || !fullName || !email || !password) {

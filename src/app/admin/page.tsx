@@ -13,7 +13,6 @@ import {
   FileText, 
   AlertCircle,
   LogOut,
-  Users,
   BarChart3,
   Building2,
   Trash2,
@@ -102,19 +101,55 @@ export default function AdminDashboardPage() {
   const [flaggedCommentReports, setFlaggedCommentReports] = useState<FlaggedCommentReport[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
 
-  // FETCH REAL DATA FROM LOCALSTORAGE
+  // DYNAMIC ANALYTICS COMPUTED STATE
+  const [analyticsData, setAnalyticsData] = useState({
+    totalPosts: 0,
+    totalStudents: 1,
+    totalP2PVolume: 0,
+    totalAppealsVerified: 0,
+    avgReviewTimeHours: 1.8,
+    activeDonorsCount: 0,
+    totalPlatformImpactINR: 0,
+    collegeBreakdown: [
+      { college: 'Delhi Technological University (DTU)', students: 0, percentage: 0 },
+      { college: 'Netaji Subhas University of Technology (NSUT)', students: 0, percentage: 0 },
+      { college: 'Indira Gandhi Delhi Technical University for Women (IGDTUW)', students: 0, percentage: 0 },
+      { college: 'Guru Gobind Singh Indraprastha University (IP University)', students: 0, percentage: 0 },
+    ]
+  });
+
+  // FETCH REAL DATA FROM LOCALSTORAGE & COMPUTE ANALYTICS DYNAMICALLY BASED ON LOGINS & POSTS
   useEffect(() => {
-    const loadAdminData = () => {
+    const loadAdminData = async () => {
       // 1. Fetch User Posts & Appeals
+      let combinedPosts: AdminPost[] = [];
       const savedUser = localStorage.getItem('user_posts');
       if (savedUser) {
         try {
           const parsed = JSON.parse(savedUser);
-          if (Array.isArray(parsed)) setAllPosts(parsed);
+          if (Array.isArray(parsed)) combinedPosts = [...parsed];
         } catch (e) {
           console.error(e);
         }
       }
+
+      const savedFeed = localStorage.getItem('feed_posts');
+      if (savedFeed) {
+        try {
+          const parsedFeed = JSON.parse(savedFeed);
+          if (Array.isArray(parsedFeed)) {
+            parsedFeed.forEach((fPost: any) => {
+              if (!combinedPosts.some(p => p.id === fPost.id)) {
+                combinedPosts.push(fPost);
+              }
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      setAllPosts(combinedPosts);
 
       // 2. Fetch Flagged Comments
       const savedReports = localStorage.getItem('adminCommentReports');
@@ -128,57 +163,97 @@ export default function AdminDashboardPage() {
       }
 
       // 3. Fetch Real Global Transactions Log
+      let loadedTransactions: TransactionRecord[] = [];
       const globalTx = localStorage.getItem('global_transactions');
       if (globalTx) {
         try {
           const parsedTx = JSON.parse(globalTx);
           if (Array.isArray(parsedTx) && parsedTx.length > 0) {
-            setTransactions(parsedTx);
-            return;
+            loadedTransactions = parsedTx;
           }
         } catch (e) {
           console.error(e);
         }
       }
 
-      // Fallback base transaction if storage is empty
-      setTransactions([
-        {
-          txId: 'CB-DIRECT-68291469',
-          razorpayId: 'pay_P2P_vphei6x7b',
-          donorName: 'Rohit Dalal',
-          donorEmail: 'dalalrohit824@gmail.com',
-          studentName: 'Divya Singh',
-          studentCollege: 'Netaji Subhas University of Technology (NSUT)',
-          studentUpi: 'divyasingh@okicici',
-          subjectCode: 'EC-202',
-          amount: 50,
-          date: '01 August 2026',
-          time: '03:05:11 PM'
+      if (loadedTransactions.length === 0) {
+        loadedTransactions = [
+          {
+            txId: 'CB-DIRECT-68291469',
+            razorpayId: 'pay_P2P_vphei6x7b',
+            donorName: 'Rohit Dalal',
+            donorEmail: 'dalalrohit824@gmail.com',
+            studentName: 'Divya Singh',
+            studentCollege: 'Netaji Subhas University of Technology (NSUT)',
+            studentUpi: 'divyasingh@okicici',
+            subjectCode: 'EC-202',
+            amount: 50,
+            date: '01 August 2026',
+            time: '03:05:11 PM'
+          }
+        ];
+      }
+      setTransactions(loadedTransactions);
+
+      // 4. Fetch Registered Users from Supabase if possible, or fallback to local sessions/logins
+      let registeredUserCount = 1;
+      try {
+        const { count, error } = await supabase
+          .from('profiles')
+          .select('*', { count: 'exact', head: true });
+        if (!error && count !== null) {
+          registeredUserCount = Math.max(1, count);
         }
-      ]);
+      } catch (err) {
+        console.error('Supabase profile count error:', err);
+      }
+
+      const totalVol = loadedTransactions.reduce((acc, curr) => acc + (curr.amount || 0), 0);
+      const uniqueDonorsCount = new Set(loadedTransactions.map((tx: any) => tx.donorEmail || tx.donorName)).size;
+      const verifiedAppealsCount = combinedPosts.filter(p => p.status === 'active' || p.category === 'funding').length;
+      
+      // Calculate college distribution dynamically based on user profile entries / posts
+      let dtuCount = 0;
+      let nsutCount = 0;
+      let igdtuwCount = 0;
+      let ipuCount = 0;
+
+      combinedPosts.forEach(p => {
+        const c = (p.college || '').toLowerCase();
+        if (c.includes('dtu') || c.includes('delhi technological')) dtuCount++;
+        else if (c.includes('nsut') || c.includes('netaji')) nsutCount++;
+        else if (c.includes('igdtuw') || c.includes('indira gandhi')) igdtuwCount++;
+        else if (c.includes('ipu') || c.includes('indraprastha') || c.includes('ggsip')) ipuCount++;
+        else dtuCount++; // default fallback bucket
+      });
+
+      // Ensure minimum distribution if empty
+      if (dtuCount === 0 && nsutCount === 0 && igdtuwCount === 0 && ipuCount === 0) {
+        dtuCount = 1;
+      }
+
+      const sumCampuses = dtuCount + nsutCount + igdtuwCount + ipuCount;
+      const getPct = (val: number) => Math.round((val / sumCampuses) * 100);
+
+      setAnalyticsData({
+        totalPosts: combinedPosts.length,
+        totalStudents: registeredUserCount + combinedPosts.length,
+        totalP2PVolume: totalVol,
+        totalAppealsVerified: verifiedAppealsCount,
+        avgReviewTimeHours: 1.8,
+        activeDonorsCount: uniqueDonorsCount || 1,
+        totalPlatformImpactINR: totalVol,
+        collegeBreakdown: [
+          { college: 'Delhi Technological University (DTU)', students: dtuCount, percentage: getPct(dtuCount) },
+          { college: 'Netaji Subhas University of Technology (NSUT)', students: nsutCount, percentage: getPct(nsutCount) },
+          { college: 'Indira Gandhi Delhi Technical University for Women (IGDTUW)', students: igdtuwCount, percentage: getPct(igdtuwCount) },
+          { college: 'Guru Gobind Singh Indraprastha University (IP University)', students: ipuCount, percentage: getPct(ipuCount) },
+        ]
+      });
     };
 
     loadAdminData();
   }, []);
-
-  const totalVolumeCalculated = transactions.reduce((acc, curr) => acc + (curr.amount || 0), 0);
-
-  const analyticsData = {
-    totalPosts: allPosts.length,
-    totalStudents: 248,
-    totalP2PVolume: totalVolumeCalculated || 124500,
-    totalAppealsVerified: allPosts.filter(p => p.status === 'active').length + 14,
-    avgReviewTimeHours: 1.8,
-    activeDonorsCount: transactions.length || 92,
-    totalPlatformImpactINR: totalVolumeCalculated || 124500,
-    collegeBreakdown: [
-      { college: 'Delhi Technological University (DTU)', students: 112, percentage: 45 },
-      { college: 'Netaji Subhas University of Technology (NSUT)', students: 82, percentage: 33 },
-      { college: 'Indira Gandhi Delhi Technical University for Women (IGDTUW)', students: 34, percentage: 14 },
-      { college: 'Delhi University (DU North/South)', students: 20, percentage: 8 },
-    ]
-  };
 
   useEffect(() => {
     const verifyAdminAccess = async () => {
@@ -526,7 +601,7 @@ export default function AdminDashboardPage() {
                       <h3 className="text-base font-bold text-white">{post.title}</h3>
                       {post.story && (
                         <p className="text-xs text-slate-300 italic bg-[#181818] p-3 rounded-xl border border-slate-800">
-                          "{post.story}"
+                          &ldquo;{post.story}&rdquo;
                         </p>
                       )}
 
@@ -627,7 +702,7 @@ export default function AdminDashboardPage() {
                         Comment by: <span className="text-white">{report.author}</span> • Reported by: <span className="text-slate-400">{report.reportedBy}</span>
                       </p>
                       <p className="text-slate-200 italic bg-[#181818] p-3 rounded-xl border border-slate-800">
-                        "{report.text}"
+                        &ldquo;{report.text}&rdquo;
                       </p>
                     </div>
 
@@ -708,7 +783,7 @@ export default function AdminDashboardPage() {
                   {analyticsData.collegeBreakdown.map((item) => (
                     <div key={item.college} className="space-y-1 text-xs">
                       <div className="flex justify-between font-bold">
-                        <span className="text-slate-200 truncate max-w-[200px]">{item.college}</span>
+                        <span className="text-slate-200 truncate max-w-[220px]">{item.college}</span>
                         <span className="text-purple-400">{item.students} ({item.percentage}%)</span>
                       </div>
                       <div className="w-full bg-slate-800 h-2.5 rounded-full overflow-hidden">

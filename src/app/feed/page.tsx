@@ -70,6 +70,7 @@ function FeedContent() {
     const loadAllPosts = () => {
       let combined: FeedPost[] = [];
 
+      // Load purely from local storage user posts and feed posts (no dummy/sample posts)
       const savedFeed = localStorage.getItem('feed_posts');
       if (savedFeed) {
         try {

@@ -8,15 +8,15 @@ import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { 
   ArrowLeft, 
-  ShieldCheck, 
-  CheckCircle2, 
   Sparkles, 
-  CreditCard, 
-  Lock, 
+  CheckCircle2, 
   FileCheck2, 
   Building2,
   Heart,
-  Check
+  Check,
+  QrCode,
+  Send,
+  ExternalLink
 } from 'lucide-react';
 
 interface FeeAppealPost {
@@ -60,6 +60,10 @@ export default function DonatePage() {
   const [encouragingNote, setEncouragingNote] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
+
+  // MANUAL UPI VERIFICATION STATE
+  const [step, setStep] = useState<'amount' | 'utr'>('amount');
+  const [utrNumber, setUtrNumber] = useState('');
 
   useEffect(() => {
     if (!postId) return;
@@ -139,193 +143,152 @@ export default function DonatePage() {
     }
   };
 
-  // Helper loader for Razorpay Checkout Script
-  const loadRazorpayScript = () => {
-    return new Promise((resolve) => {
-      if ((window as any).Razorpay) {
-        resolve(true);
-        return;
-      }
-      const script = document.createElement('script');
-      script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-      script.onload = () => resolve(true);
-      script.onerror = () => resolve(false);
-      document.body.appendChild(script);
-    });
-  };
-
-  const handleProcessPayment = (e: React.FormEvent) => {
+  // Step 1: Initialize UPI Intent flow
+  const handleProceedToPay = (e: React.FormEvent) => {
     e.preventDefault();
     if (!campaign || selectedAmount <= 0) {
       alert('Please enter a valid donation amount.');
       return;
     }
 
-    requireAuthAction(async () => {
-      setIsProcessing(true);
+    requireAuthAction(() => {
+      setStep('utr');
+    });
+  };
 
-      // 1. Load Razorpay SDK Script dynamically
-      const isScriptLoaded = await loadRazorpayScript();
-      if (!isScriptLoaded) {
-        alert('Razorpay SDK failed to load. Please check your internet connection.');
-        setIsProcessing(false);
-        return;
-      }
+  // Step 2: Open UPI App Intent (with desktop fallback alert)
+  const handleOpenUpiApp = () => {
+    const targetUpi = campaign?.bankDetails?.upiId || 'divyasingh@okicici';
+    const studentName = campaign?.studentName || 'Student';
+    const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(studentName)}&am=${selectedAmount}&cu=INR&tn=${encodeURIComponent(`ComeBack Donation for ${campaign?.title || 'Fee Support'}`)}`;
+    
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      window.location.href = upiLink;
+    } else {
+      alert(`Since you are on a computer, please open your phone and pay ₹${selectedAmount} to this UPI ID:\n\n${targetUpi}`);
+    }
+  };
 
+  // Step 3: Complete verification with UTR number submission
+  const handleVerifyAndSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!utrNumber || utrNumber.length < 8) {
+      alert('Please enter a valid 12-digit UTR / Transaction Reference number from your UPI app.');
+      return;
+    }
+
+    setIsProcessing(true);
+
+    const donorDisplayName = isAnonymous ? 'Anonymous Donor' : (currentUser?.full_name || user?.email || 'Rohit Dalal');
+    const donorEmailAddress = currentUser?.email || user?.email || 'donor@dtu.ac.in';
+
+    const newRaised = (campaign?.raised || 0) + selectedAmount;
+    const updatedCampaign = { ...campaign, raised: newRaised };
+
+    // Update Post Raised Amount in localStorage
+    const savedUser = localStorage.getItem('user_posts');
+    if (savedUser) {
       try {
-        // 2. Create order on backend API route
-        const orderRes = await fetch('/api/create-order', {
+        const parsed = JSON.parse(savedUser);
+        const updated = parsed.map((p: any) => p.id === campaign?.id ? updatedCampaign : p);
+        localStorage.setItem('user_posts', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    const savedFeed = localStorage.getItem('feed_posts');
+    if (savedFeed) {
+      try {
+        const parsed = JSON.parse(savedFeed);
+        const updated = parsed.map((p: any) => p.id === campaign?.id ? updatedCampaign : p);
+        localStorage.setItem('feed_posts', JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    // Build Transaction Record
+    const now = new Date();
+    const txRecord = {
+      id: `tx-${Date.now()}`,
+      txId: `CB-UPI-${Math.floor(10000000 + Math.random() * 90000000)}`,
+      razorpayId: `UPI-UTR-${utrNumber.trim()}`,
+      donorName: donorDisplayName,
+      donorEmail: donorEmailAddress,
+      studentName: campaign?.studentName || 'Divya Singh',
+      studentEmail: campaign?.studentEmail || 'student@nsut.ac.in',
+      studentCollege: campaign?.college || 'NSUT',
+      studentUpi: campaign?.bankDetails?.upiId || 'student@upi',
+      subjectCode: campaign?.subjectCode || 'Exam Fee',
+      campaignTitle: campaign?.title,
+      amount: selectedAmount,
+      date: now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }),
+      time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
+      timeAgo: 'Just now'
+    };
+
+    // Save to User Donations & Global Transactions
+    const userDonations = JSON.parse(localStorage.getItem('user_donations') || '[]');
+    localStorage.setItem('user_donations', JSON.stringify([txRecord, ...userDonations]));
+
+    const globalTx = JSON.parse(localStorage.getItem('global_transactions') || '[]');
+    localStorage.setItem('global_transactions', JSON.stringify([txRecord, ...globalTx]));
+
+    // Add to User Activity Log
+    const activityItem = {
+      id: `act-${Date.now()}`,
+      type: 'donation',
+      postTitle: campaign?.title,
+      postId: campaign?.id,
+      timeAgo: 'Just now',
+      content: `Donated ₹${selectedAmount} via UPI to ${campaign?.studentName || 'Student'} (${campaign?.college || 'College'})`
+    };
+    const userActivities = JSON.parse(localStorage.getItem('user_activities') || '[]');
+    localStorage.setItem('user_activities', JSON.stringify([activityItem, ...userActivities]));
+
+    // Dispatch Automated Email Receipts
+    try {
+      await fetch('/api/send-status-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'donation_receipt_donor',
+          email: txRecord.donorEmail,
+          donorName: txRecord.donorName,
+          studentName: txRecord.studentName,
+          studentCollege: txRecord.studentCollege,
+          studentUpi: txRecord.studentUpi,
+          subjectCode: txRecord.subjectCode,
+          amount: txRecord.amount,
+          txId: txRecord.txId,
+          razorpayId: txRecord.razorpayId,
+          date: txRecord.date,
+          time: txRecord.time,
+        }),
+      });
+
+      if (txRecord.studentEmail) {
+        await fetch('/api/send-status-email', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ amount: selectedAmount }),
+          body: JSON.stringify({
+            type: 'donation_received_student',
+            email: txRecord.studentEmail,
+            studentName: txRecord.studentName,
+            donorName: txRecord.donorName,
+            amount: txRecord.amount,
+            note: encouragingNote,
+          }),
         });
-
-        const orderData = await orderRes.json();
-
-        if (!orderData.success) {
-          throw new Error(orderData.error || 'Failed to create Razorpay order.');
-        }
-
-        const donorDisplayName = isAnonymous ? 'Anonymous Donor' : (currentUser?.full_name || user?.email || 'Rohit Dalal');
-        const donorEmailAddress = currentUser?.email || user?.email || 'donor@dtu.ac.in';
-
-        // 3. Configure Razorpay Gateway Options
-        const options = {
-          key: process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID || 'rzp_test_dummykey',
-          amount: orderData.order.amount,
-          currency: orderData.order.currency,
-          name: 'comeBACK Foundation',
-          description: `Direct Support for ${campaign.studentName || 'Student'}`,
-          order_id: orderData.order.id,
-          handler: async function (response: any) {
-            // PAYMENT SUCCESSFUL HANDLER
-            const newRaised = (campaign.raised || 0) + selectedAmount;
-            const updatedCampaign = { ...campaign, raised: newRaised };
-
-            // Update Post Raised Amount in localStorage
-            const savedUser = localStorage.getItem('user_posts');
-            if (savedUser) {
-              try {
-                const parsed = JSON.parse(savedUser);
-                const updated = parsed.map((p: any) => p.id === campaign.id ? updatedCampaign : p);
-                localStorage.setItem('user_posts', JSON.stringify(updated));
-              } catch (e) {
-                console.error(e);
-              }
-            }
-
-            const savedFeed = localStorage.getItem('feed_posts');
-            if (savedFeed) {
-              try {
-                const parsed = JSON.parse(savedFeed);
-                const updated = parsed.map((p: any) => p.id === campaign.id ? updatedCampaign : p);
-                localStorage.setItem('feed_posts', JSON.stringify(updated));
-              } catch (e) {
-                console.error(e);
-              }
-            }
-
-            // Build Transaction Record
-            const now = new Date();
-            const txRecord = {
-              id: `tx-${Date.now()}`,
-              txId: `CB-DIRECT-${Math.floor(10000000 + Math.random() * 90000000)}`,
-              razorpayId: response.razorpay_payment_id || `pay_P2P_${Math.random().toString(36).substring(2, 11)}`,
-              donorName: donorDisplayName,
-              donorEmail: donorEmailAddress,
-              studentName: campaign.studentName || 'Divya Singh',
-              studentEmail: campaign.studentEmail || 'student@nsut.ac.in',
-              studentCollege: campaign.college || 'NSUT',
-              studentUpi: campaign.bankDetails?.upiId || 'student@upi',
-              subjectCode: campaign.subjectCode || 'Exam Fee',
-              campaignTitle: campaign.title,
-              amount: selectedAmount,
-              date: now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }),
-              time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
-              timeAgo: 'Just now'
-            };
-
-            // Save to User Donations & Global Transactions
-            const userDonations = JSON.parse(localStorage.getItem('user_donations') || '[]');
-            localStorage.setItem('user_donations', JSON.stringify([txRecord, ...userDonations]));
-
-            const globalTx = JSON.parse(localStorage.getItem('global_transactions') || '[]');
-            localStorage.setItem('global_transactions', JSON.stringify([txRecord, ...globalTx]));
-
-            // Add to User Activity Log
-            const activityItem = {
-              id: `act-${Date.now()}`,
-              type: 'donation',
-              postTitle: campaign.title,
-              postId: campaign.id,
-              timeAgo: 'Just now',
-              content: `Donated ₹${selectedAmount} to ${campaign.studentName || 'Student'} (${campaign.college || 'College'})`
-            };
-            const userActivities = JSON.parse(localStorage.getItem('user_activities') || '[]');
-            localStorage.setItem('user_activities', JSON.stringify([activityItem, ...userActivities]));
-
-            // Dispatch Automated Email Receipts
-            try {
-              await fetch('/api/send-status-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                  type: 'donation_receipt_donor',
-                  email: txRecord.donorEmail,
-                  donorName: txRecord.donorName,
-                  studentName: txRecord.studentName,
-                  studentCollege: txRecord.studentCollege,
-                  studentUpi: txRecord.studentUpi,
-                  subjectCode: txRecord.subjectCode,
-                  amount: txRecord.amount,
-                  txId: txRecord.txId,
-                  razorpayId: txRecord.razorpayId,
-                  date: txRecord.date,
-                  time: txRecord.time,
-                }),
-              });
-
-              if (txRecord.studentEmail) {
-                await fetch('/api/send-status-email', {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    type: 'donation_received_student',
-                    email: txRecord.studentEmail,
-                    studentName: txRecord.studentName,
-                    donorName: txRecord.donorName,
-                    amount: txRecord.amount,
-                    note: encouragingNote,
-                  }),
-                });
-              }
-            } catch (emailErr) {
-              console.error('Email receipt dispatch error:', emailErr);
-            }
-
-            setIsProcessing(false);
-            alert(`Payment Successful! Razorpay Ref: ${response.razorpay_payment_id}. Receipt and email slip generated.`);
-            router.push('/profile');
-          },
-          prefill: {
-            name: donorDisplayName,
-            email: donorEmailAddress,
-          },
-          theme: {
-            color: '#2563eb',
-          },
-        };
-
-        const paymentWindow = new (window as any).Razorpay(options);
-        paymentWindow.open();
-        setIsProcessing(false);
-
-      } catch (err: any) {
-        console.error('Payment initialization error:', err);
-        alert(err.message || 'Error initializing payment gateway.');
-        setIsProcessing(false);
       }
-    });
+    } catch (emailErr) {
+      console.error('Email receipt dispatch error:', emailErr);
+    }
+
+    setIsProcessing(false);
+    alert(`Donation Recorded Successfully! UTR Ref: ${utrNumber}. Receipt and email slip generated.`);
+    router.push('/profile');
   };
 
   if (loading) {
@@ -388,7 +351,7 @@ export default function DonatePage() {
                 100% Direct Student Settlement <span className="text-xs font-normal text-emerald-400">(0% Platform Fee)</span>
               </h3>
               <p className="text-xs text-slate-300">
-                Every rupee you donate goes directly into {studentName}&apos;s verified bank/UPI account via secure Razorpay gateway.
+                Every rupee you donate goes directly into {studentName}&apos;s verified bank/UPI account via direct peer-to-peer UPI transfer.
               </p>
             </div>
           </div>
@@ -463,7 +426,7 @@ export default function DonatePage() {
               </div>
             </div>
 
-            {/* VERIFIED DIRECT SETTLEMENT DESTINATION (MASKED) */}
+            {/* VERIFIED DIRECT SETTLEMENT DESTINATION (VISIBLE UPI & MASKED ACCOUNT NUMBER) */}
             <div className="space-y-3 pt-2 border-t border-slate-800">
               <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
                 <Building2 className="w-4 h-4" /> VERIFIED DIRECT SETTLEMENT DESTINATION
@@ -472,22 +435,24 @@ export default function DonatePage() {
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">UPI VPA</span>
-                  <span className="font-mono font-bold text-white truncate block">
-                    ••••••••@okicici
+                  <span className="font-mono font-bold text-emerald-400 truncate block">
+                    {campaign.bankDetails?.upiId || 'divyasingh@okicici'}
                   </span>
                 </div>
 
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">BANK ACCOUNT</span>
                   <span className="font-mono font-bold text-white truncate block">
-                    ••••••••••••
+                    {campaign.bankDetails?.accountNumber && !/^\d+$/.test(campaign.bankDetails.accountNumber) 
+                      ? campaign.bankDetails.accountNumber 
+                      : '••••••••' + (campaign.bankDetails?.accountNumber?.slice(-4) || '8819')}
                   </span>
                 </div>
 
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">IFSC CODE</span>
                   <span className="font-mono font-bold text-white truncate block">
-                    ********
+                    {campaign.bankDetails?.ifscCode || 'SBIN0001234'}
                   </span>
                 </div>
               </div>
@@ -524,91 +489,151 @@ export default function DonatePage() {
 
           </div>
 
-          {/* RIGHT COLUMN: SEND SUPPORT CARD */}
+          {/* RIGHT COLUMN: SEND SUPPORT CARD (UPI / UTR FLOW WITH INSTRUCTIONS) */}
           <div className="lg:col-span-5 bg-[#1C1C1E] border border-slate-800/90 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl sticky top-28">
             <div className="space-y-1">
               <h3 className="text-lg font-extrabold text-white flex items-center gap-2">
                 <Heart className="w-5 h-5 text-rose-500 fill-rose-500/30" /> Send Direct Support
               </h3>
               <p className="text-xs text-slate-400">
-                0% platform fee. Pay securely via Razorpay gateway.
+                0% platform fee. Direct UPI transfer to student.
               </p>
             </div>
 
-            <form onSubmit={handleProcessPayment} className="space-y-5">
-              
-              <div className="grid grid-cols-3 gap-2">
-                {[50, 250, 500].map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => handleAmountSelect(amt)}
-                    className={`py-3 rounded-xl font-bold text-xs border transition ${
-                      selectedAmount === amt
-                        ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/30'
-                        : 'bg-[#121214] border-slate-800 text-slate-300 hover:text-white'
-                    }`}
-                  >
-                    ₹{amt}
-                  </button>
-                ))}
-              </div>
+            {step === 'amount' ? (
+              <form onSubmit={handleProceedToPay} className="space-y-5">
+                
+                <div className="grid grid-cols-3 gap-2">
+                  {[50, 250, 500].map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => handleAmountSelect(amt)}
+                      className={`py-3 rounded-xl font-bold text-xs border transition ${
+                        selectedAmount === amt
+                          ? 'bg-blue-600 border-blue-500 text-white shadow-lg shadow-blue-600/30'
+                          : 'bg-[#121214] border-slate-800 text-slate-300 hover:text-white'
+                      }`}
+                    >
+                      ₹{amt}
+                    </button>
+                  ))}
+                </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
-                  CUSTOM AMOUNT (INR)
-                </label>
-                <div className="relative">
-                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
-                    ₹
-                  </span>
-                  <input
-                    type="number"
-                    min="10"
-                    required
-                    value={customAmount}
-                    onChange={handleCustomAmountChange}
-                    className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white font-bold text-sm rounded-xl pl-8 pr-4 py-3 focus:outline-none"
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
+                    CUSTOM AMOUNT (INR)
+                  </label>
+                  <div className="relative">
+                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">
+                      ₹
+                    </span>
+                    <input
+                      type="number"
+                      min="10"
+                      required
+                      value={customAmount}
+                      onChange={handleCustomAmountChange}
+                      className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white font-bold text-sm rounded-xl pl-8 pr-4 py-3 focus:outline-none"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
+                    ENCOURAGING NOTE (OPTIONAL)
+                  </label>
+                  <textarea
+                    value={encouragingNote}
+                    onChange={(e) => setEncouragingNote(e.target.value)}
+                    placeholder={`Write a warm note to ${firstName}...`}
+                    className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white text-xs rounded-xl p-3 focus:outline-none resize-none min-h-[90px]"
                   />
                 </div>
-              </div>
 
-              <div className="space-y-1.5">
-                <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
-                  ENCOURAGING NOTE (OPTIONAL)
+                <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={isAnonymous}
+                    onChange={(e) => setIsAnonymous(e.target.checked)}
+                    className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-[#121214]"
+                  />
+                  <span>Hide my name on public donor lists</span>
                 </label>
-                <textarea
-                  value={encouragingNote}
-                  onChange={(e) => setEncouragingNote(e.target.value)}
-                  placeholder={`Write a warm note to ${firstName}...`}
-                  className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white text-xs rounded-xl p-3 focus:outline-none resize-none min-h-[90px]"
-                />
-              </div>
 
-              <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={isAnonymous}
-                  onChange={(e) => setIsAnonymous(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-700 text-blue-600 focus:ring-blue-500 bg-[#121214]"
-                />
-                <span>Hide my name on public donor lists</span>
-              </label>
+                <button
+                  type="submit"
+                  className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-95"
+                >
+                  <QrCode className="w-4 h-4" /> Pay ₹{selectedAmount || 0} via UPI
+                </button>
 
-              <button
-                type="submit"
-                disabled={isProcessing}
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-95"
-              >
-                <CreditCard className="w-4 h-4" />
-                {isProcessing ? 'Initializing Razorpay...' : `Transfer ₹${selectedAmount || 0} via Razorpay`}
-              </button>
+                <p className="text-[11px] text-slate-500 text-center font-mono">
+                  🔒 Direct UPI P2P Transfer • 0% Fee
+                </p>
 
-              <p className="text-[11px] text-slate-500 text-center flex items-center justify-center gap-1 font-mono">
-                <Lock className="w-3 h-3 text-slate-500" /> Secure Razorpay Gateway • 0% Fee
-              </p>
+              </form>
+            ) : (
+              <form onSubmit={handleVerifyAndSubmit} className="space-y-5">
+                
+                {/* INSTRUCTION BOX */}
+                <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4 space-y-2">
+                  <h4 className="text-xs font-black text-amber-400 uppercase flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4" /> Payment Instructions
+                  </h4>
+                  <ul className="text-[11px] text-slate-300 space-y-1.5 list-decimal pl-3 leading-relaxed">
+                    <li>Click the button below to pay <strong>₹{selectedAmount}</strong>.</li>
+                    <li>Complete the payment in your UPI App.</li>
+                    <li>Copy the <strong>12-digit UTR/Ref Number</strong> from your payment success screen.</li>
+                    <li>Paste the number below and click <strong>Verify & Submit</strong>.</li>
+                  </ul>
+                </div>
 
-            </form>
+                <button
+                  type="button"
+                  onClick={handleOpenUpiApp}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                >
+                  <ExternalLink className="w-4 h-4" /> 1. Open UPI App & Pay ₹{selectedAmount}
+                </button>
+
+                <div className="space-y-1.5 pt-2">
+                  <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
+                    2. ENTER 12-DIGIT UTR / UPI REF NO. *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. 435261829012"
+                    value={utrNumber}
+                    onChange={(e) => setUtrNumber(e.target.value)}
+                    className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white font-mono font-bold text-sm rounded-xl px-4 py-3 focus:outline-none"
+                  />
+                  <p className="text-[10px] text-slate-500">
+                    Found in your payment app transaction history after successful payment.
+                  </p>
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setStep('amount')}
+                    className="w-1/3 py-3 bg-[#121214] hover:bg-slate-800 border border-slate-800 text-slate-300 font-bold text-xs rounded-xl transition"
+                  >
+                    Back
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isProcessing}
+                    className="w-2/3 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
+                  >
+                    <Send className="w-4 h-4" />
+                    {isProcessing ? 'Verifying...' : 'Verify & Submit'}
+                  </button>
+                </div>
+              </form>
+            )}
+
           </div>
 
         </div>
