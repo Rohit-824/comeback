@@ -6,10 +6,12 @@ import Footer from '@/components/Footer';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata: Metadata = {
-  title: 'comeBack — Delhi Engineering Student Support',
-  description:
-    'Delhi engineering students helping each other clear back exam fees. DTU, NSUT, IGDTUW, IP University.',
+export const metadata = {
+  title: 'comeBack — Delhi Engineering Support Network',
+  description: 'Turn your academic back into a comeback.',
+  icons: {
+    icon: '/icon.png', // Ensure your file in src/app/ is named icon.png
+  },
 };
 
 export default function RootLayout({
