@@ -279,7 +279,7 @@ export default function ProfilePage() {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
-        discussionTag: !isFunding ? newDiscussionTag : 'Fee Appeal',
+        discussion_tag: !isFunding ? newDiscussionTag : 'Fee Appeal',
         student_name: currentUser?.full_name || 'Rohit Dalal',
         student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
         college: currentUser?.college || 'DTU',
