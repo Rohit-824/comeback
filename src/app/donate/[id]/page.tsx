@@ -96,9 +96,9 @@ export default function DonatePage() {
           raised: data.raised || 0,
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
           bankDetails: {
-            upiId: data.student_email ? `${data.student_email.split('@')[0]}@okicici` : 'student@okicici',
-            accountNumber: '••••••••8819',
-            ifscCode: 'SBIN0001234'
+            upiId: data.upi_id || (data.student_email ? `${data.student_email.split('@')[0]}@okicici` : 'student@okicici'),
+            accountNumber: data.account_number || 'Not Provided',
+            ifscCode: data.ifsc_code || 'Not Provided'
           }
         };
       }
@@ -150,7 +150,7 @@ export default function DonatePage() {
           datePosted: '1 day ago',
           bankDetails: {
             upiId: 'divyasingh@okicici',
-            accountNumber: '••••••••8819',
+            accountNumber: '123456789012',
             ifscCode: 'SBIN0001234'
           }
         };
@@ -192,14 +192,14 @@ export default function DonatePage() {
   };
 
   const handleOpenUpiApp = () => {
-    const targetUpi = campaign?.bankDetails?.upiId || 'divyasingh@okicici';
+    const targetUpi = campaign?.bankDetails?.upiId || 'dalalrohit8241@okicici';
     const studentName = campaign?.studentName || 'Student';
     const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(studentName)}&am=${selectedAmount}&cu=INR&tn=${encodeURIComponent(`ComeBack Donation for ${campaign?.title || 'Fee Support'}`)}`;
     
     if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
       window.location.href = upiLink;
     } else {
-      alert(`Since you are on a computer, please open your phone and pay ₹${selectedAmount} to this UPI ID:\n\n${targetUpi}`);
+      alert(`Since you are on a computer, please open your phone and pay ₹${selectedAmount} to this exact UPI ID:\n\n${targetUpi}`);
     }
   };
 
@@ -450,23 +450,21 @@ export default function DonatePage() {
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">UPI VPA</span>
                   <span className="font-mono font-bold text-emerald-400 truncate block">
-                    {campaign.bankDetails?.upiId || 'divyasingh@okicici'}
+                    {campaign.bankDetails?.upiId || 'dalalrohit8241@okicici'}
                   </span>
                 </div>
 
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">BANK ACCOUNT</span>
                   <span className="font-mono font-bold text-white truncate block">
-                    {campaign.bankDetails?.accountNumber && !/^\d+$/.test(campaign.bankDetails.accountNumber) 
-                      ? campaign.bankDetails.accountNumber 
-                      : '••••••••' + (campaign.bankDetails?.accountNumber?.slice(-4) || '8819')}
+                    {campaign.bankDetails?.accountNumber || 'Not Provided'}
                   </span>
                 </div>
 
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">IFSC CODE</span>
                   <span className="font-mono font-bold text-white truncate block">
-                    {campaign.bankDetails?.ifscCode || 'SBIN0001234'}
+                    {campaign.bankDetails?.ifscCode || 'Not Provided'}
                   </span>
                 </div>
               </div>
@@ -653,7 +651,7 @@ export default function DonatePage() {
 
       </main>
 
-      {/* <Footer /> */}
+      <Footer />
     </div>
   );
 }
