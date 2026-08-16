@@ -128,7 +128,6 @@ export default function ProfilePage() {
         .order('created_at', { ascending: false });
 
       if (!error && postsData) {
-        // Map database fields to UserPost interface format if needed
         const mappedPosts = postsData.map((p: any) => ({
           id: p.id,
           title: p.title,
@@ -295,8 +294,8 @@ export default function ProfilePage() {
     ]).select();
 
     if (error) {
-      console.error('Error creating post in Supabase:', error.message);
-      alert('Failed to publish post to database.');
+      console.error('Error creating post in Supabase:', error);
+      alert(`Failed to publish: ${error.message}`);
       return;
     }
 
@@ -1083,7 +1082,7 @@ export default function ProfilePage() {
                     <div className="bg-[#181818] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
                       <span className="text-slate-400">3. Fee Notice / Challan:</span>
                       <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded cursor-pointer transition">
-                        {feeChallanFile ? feeChallanFile.name : 'Choose File'}
+                        {feeChallanFile ? feeChallanFile.name : 'Choose Data'}
                         <input type="file" required accept="image/*,.pdf" onChange={(e) => setFeeChallanFile(e.target.files?.[0] || null)} className="hidden" />
                       </label>
                     </div>
