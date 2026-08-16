@@ -129,7 +129,7 @@ function FeedContent() {
     if (selectedCategory === 'all') return matchesSearch;
     if (selectedCategory === 'funding') return matchesSearch && post.category === 'funding';
     
-    const tag = (post.discussionTag || post.subject_code || '').toLowerCase();
+    const tag = (post.discussionTag || (post as any).subject_code || '').toLowerCase();
     return matchesSearch && tag.includes(selectedCategory.toLowerCase());
   });
 
@@ -233,9 +233,9 @@ function FeedContent() {
                         <Trophy className="w-3.5 h-3.5 text-emerald-400" /> Fee Appeal
                       </span>
                     ) : (
-                      (post.discussionTag || post.subject_code) && (
+                      (post.discussionTag || (post as any).subject_code) && (
                         <span className="bg-purple-950/80 text-purple-300 border border-purple-800/80 px-2.5 py-0.5 rounded-full font-bold text-xs capitalize">
-                          {post.discussionTag || post.subject_code}
+                          {post.discussionTag || (post as any).subject_code}
                         </span>
                       )
                     )}
