@@ -146,9 +146,9 @@ export default function AdminDashboardPage() {
           mediaType: p.media_type,
           mediaUrl: p.media_url,
           documents: {
-            collegeIdUrl: p.college_id_url,
-            marksheetUrl: p.marksheet_url,
-            feeChallanUrl: p.fee_challan_url
+            collegeIdUrl: p.college_id_url || p.collegeIdUrl,
+            marksheetUrl: p.marksheet_url || p.marksheetUrl,
+            feeChallanUrl: p.fee_challan_url || p.feeChallanUrl
           }
         }));
       }
@@ -1080,6 +1080,7 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
+      {/* <Footer /> */}
     </div>
   );
 }
