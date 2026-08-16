@@ -108,7 +108,7 @@ export default function ProfilePage() {
 
   const [selectedReceipt, setSelectedReceipt] = useState<UserDonation | null>(null);
 
-  // LOAD REAL USER DATA EXCLUSIVELY FROM SUPABASE
+  // LOAD REAL USER DATA FROM SUPABASE
   useEffect(() => {
     async function fetchProfileData() {
       // 1. Fetch Posts from Supabase Database
@@ -139,7 +139,7 @@ export default function ProfilePage() {
         }));
         setUserPosts(mappedPosts);
         
-        // Saved posts from Supabase data mapped to saved IDs map
+        // Saved posts mapped to saved IDs map
         const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
         const uniqueSaved = mappedPosts.filter(p => savedIds[p.id]);
         setSavedPostsList(uniqueSaved);
@@ -249,13 +249,23 @@ export default function ProfilePage() {
       }
     }
 
-    // Insert directly into Supabase table without using any unmapped custom columns that trigger schema errors
+    let collegeIdUrl: string | undefined = undefined;
+    let marksheetUrl: string | undefined = undefined;
+    let feeChallanUrl: string | undefined = undefined;
+
+    if (isFunding) {
+      if (collegeIdFile) collegeIdUrl = await convertFileToBase64(collegeIdFile);
+      if (resultFile) marksheetUrl = await convertFileToBase64(resultFile);
+      if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
+    }
+
+    // Insert directly into Supabase table including document proofs
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
-        subject_code: isFunding ? newSubjectCode : newDiscussionTag, // Stores category tag safely in subject_code column
+        subject_code: isFunding ? newSubjectCode : newDiscussionTag,
         student_name: currentUser?.full_name || 'Rohit Dalal',
         student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
         college: currentUser?.college || 'DTU',
@@ -265,6 +275,9 @@ export default function ProfilePage() {
         status: isFunding ? 'pending_verification' : 'active',
         media_type: mediaType || null,
         media_url: mediaUrl || null,
+        college_id_url: collegeIdUrl || null,
+        marksheet_url: marksheetUrl || null,
+        fee_challan_url: feeChallanUrl || null,
       }
     ]).select();
 
