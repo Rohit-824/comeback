@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { 
   ArrowUp, 
   ArrowDown, 
@@ -50,49 +51,80 @@ export default function DiscussionPostPage() {
   const [reportReason, setReportReason] = useState('Harassment or Hate Speech');
   const [reportSuccess, setReportSuccess] = useState(false);
 
-  // FETCH PARTICULAR POST & ITS COMMENTS BY ID
+  // FETCH PARTICULAR POST & ITS COMMENTS BY ID FROM SUPABASE
   useEffect(() => {
-    if (!postId) return;
+    async function fetchPostDetails() {
+      if (!postId) return;
 
-    // Fetch Post from LocalStorage
-    const savedPosts = localStorage.getItem('user_posts');
-    const savedFeed = localStorage.getItem('feed_posts');
-    let found = null;
+      // Fetch from Supabase posts table
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .eq('id', postId)
+        .single();
 
-    if (savedPosts) {
-      try {
-        const parsed = JSON.parse(savedPosts);
-        found = parsed.find((p: any) => p.id === postId);
-      } catch (e) {
-        console.error('Error reading user_posts:', e);
-      }
-    }
+      if (!error && data) {
+        setPostData({
+          id: data.id,
+          title: data.title,
+          story: data.story,
+          category: data.category,
+          datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
+          studentName: data.student_name,
+          studentEmail: data.student_email,
+          college: data.college || 'DTU',
+          subjectCode: data.subject_code,
+          subjectGrade: data.subject_grade,
+          goal: data.goal || 0,
+          raised: data.raised || 0,
+          status: data.status,
+          mediaType: data.media_type,
+          mediaUrl: data.media_url,
+        });
+      } else {
+        // Fallback to local storage if not found in database directly
+        const savedPosts = localStorage.getItem('user_posts');
+        const savedFeed = localStorage.getItem('feed_posts');
+        let found = null;
 
-    if (!found && savedFeed) {
-      try {
-        const parsedFeed = JSON.parse(savedFeed);
-        found = parsedFeed.find((p: any) => p.id === postId);
-      } catch (e) {
-        console.error('Error reading feed_posts:', e);
-      }
-    }
-
-    if (found) {
-      setPostData(found);
-    }
-
-    // Fetch Actual User Comments for this Post from LocalStorage
-    const savedComments = localStorage.getItem(`post_comments_${postId}`);
-    if (savedComments) {
-      try {
-        const parsedComments = JSON.parse(savedComments);
-        if (Array.isArray(parsedComments)) {
-          setCommentsList(parsedComments);
+        if (savedPosts) {
+          try {
+            const parsed = JSON.parse(savedPosts);
+            found = parsed.find((p: any) => p.id === postId);
+          } catch (e) {
+            console.error('Error reading user_posts:', e);
+          }
         }
-      } catch (e) {
-        console.error('Error reading comments:', e);
+
+        if (!found && savedFeed) {
+          try {
+            const parsedFeed = JSON.parse(savedFeed);
+            found = parsedFeed.find((p: any) => p.id === postId);
+          } catch (e) {
+            console.error('Error reading feed_posts:', e);
+          }
+        }
+
+        if (found) {
+          setPostData(found);
+        }
+      }
+
+      // Fetch Actual User Comments for this Post from LocalStorage
+      const savedComments = localStorage.getItem(`post_comments_${postId}`);
+      if (savedComments) {
+        try {
+          const parsedComments = JSON.parse(savedComments);
+          if (Array.isArray(parsedComments)) {
+            setCommentsList(parsedComments);
+          }
+        } catch (e) {
+          console.error('Error reading comments:', e);
+        }
       }
     }
+
+    fetchPostDetails();
   }, [postId]);
 
   // Sync comment changes to LocalStorage
