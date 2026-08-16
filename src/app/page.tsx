@@ -106,7 +106,7 @@ export default function ComeBackHomePage() {
 
             <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
               <Link 
-                href="/donate/post-1" 
+                href="/feed?category=funding" 
                 className="px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-bold text-base rounded-2xl shadow-xl shadow-blue-600/20 transition active:scale-95 flex items-center justify-center gap-2"
               >
                 Support A Student <Heart className="w-5 h-5 fill-white" />
