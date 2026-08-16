@@ -17,7 +17,8 @@ import {
   Check,
   QrCode,
   Send,
-  ExternalLink
+  Copy,
+  X
 } from 'lucide-react';
 
 interface FeeAppealPost {
@@ -58,9 +59,11 @@ export default function DonatePage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // MANUAL UPI VERIFICATION STATE
+  // MANUAL UPI & QR MODAL STATE
   const [step, setStep] = useState<'amount' | 'utr'>('amount');
+  const [showUpiModal, setShowUpiModal] = useState(false);
   const [utrNumber, setUtrNumber] = useState('');
+  const [copied, setCopied] = useState(false);
 
   // FETCH CAMPAIGN WITH SUPABASE + LOCALSTORAGE DUAL-SYNC
   useEffect(() => {
@@ -167,25 +170,21 @@ export default function DonatePage() {
     }
 
     requireAuthAction(() => {
-      setStep('utr');
+      setShowUpiModal(true);
     });
   };
 
-  const handleOpenUpiApp = () => {
-    const targetUpi = campaign?.upiId;
-    if (!targetUpi || targetUpi === 'Not Provided') {
-      alert('Error: No valid UPI ID found for this student account.');
-      return;
+  const handleCopyUpi = () => {
+    if (campaign?.upiId) {
+      navigator.clipboard.writeText(campaign.upiId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     }
+  };
 
-    const studentName = campaign?.studentName || 'Student';
-    const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(studentName)}&am=${selectedAmount}&cu=INR&tn=${encodeURIComponent(`ComeBack Donation for ${campaign?.title || 'Fee Support'}`)}`;
-    
-    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-      window.location.href = upiLink;
-    } else {
-      alert(`Since you are on a computer, please open your phone and pay ₹${selectedAmount} to this exact UPI ID:\n\n${targetUpi}`);
-    }
+  const handleProceedToUtr = () => {
+    setShowUpiModal(false);
+    setStep('utr');
   };
 
   const handleVerifyAndSubmit = async (e: React.FormEvent) => {
@@ -436,15 +435,10 @@ export default function DonatePage() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (campaign.upiId) {
-                      navigator.clipboard.writeText(campaign.upiId);
-                      alert('UPI ID copied to clipboard!');
-                    }
-                  }}
+                  onClick={handleCopyUpi}
                   className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg transition"
                 >
-                  Copy UPI ID
+                  {copied ? 'Copied!' : 'Copy UPI ID'}
                 </button>
               </div>
             </div>
@@ -572,24 +566,16 @@ export default function DonatePage() {
                     <Sparkles className="w-4 h-4" /> Payment Instructions
                   </h4>
                   <ul className="text-[11px] text-slate-300 space-y-1.5 list-decimal pl-3 leading-relaxed">
-                    <li>Click the button below to pay <strong>₹{selectedAmount}</strong>.</li>
-                    <li>Complete the payment in your UPI App.</li>
-                    <li>Copy the <strong>12-digit UTR/Ref Number</strong> from your payment success screen.</li>
+                    <li>Pay <strong>₹{selectedAmount}</strong> to the student's UPI ID.</li>
+                    <li>Complete the transaction in your UPI App.</li>
+                    <li>Copy the <strong>12-digit UTR / Ref Number</strong> from your payment success screen.</li>
                     <li>Paste the number below and click <strong>Verify & Submit</strong>.</li>
                   </ul>
                 </div>
 
-                <button
-                  type="button"
-                  onClick={handleOpenUpiApp}
-                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
-                >
-                  <ExternalLink className="w-4 h-4" /> 1. Open UPI App & Pay ₹{selectedAmount}
-                </button>
-
-                <div className="space-y-1.5 pt-2">
+                <div className="space-y-1.5">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
-                    2. ENTER 12-DIGIT UTR / UPI REF NO. *
+                    ENTER 12-DIGIT UTR / UPI REF NO. *
                   </label>
                   <input
                     type="text"
@@ -630,7 +616,71 @@ export default function DonatePage() {
 
       </main>
 
-      <Footer />
+      {/* UPI ID / QR PAYMENT MODAL */}
+      {showUpiModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4 font-sans">
+          <div className="bg-[#1E1E1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-md w-full space-y-6 shadow-2xl relative text-center">
+            
+            <button 
+              onClick={() => setShowUpiModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-2">
+              <div className="w-12 h-12 bg-blue-600/20 text-blue-400 rounded-2xl flex items-center justify-center mx-auto border border-blue-500/30">
+                <QrCode className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-bold text-white">Scan or Pay via UPI ID</h2>
+              <p className="text-xs text-slate-400">
+                Send <strong className="text-white">₹{selectedAmount}</strong> directly to <strong className="text-white">{studentName}</strong>.
+              </p>
+            </div>
+
+            {/* UPI ID Copy Box */}
+            <div className="bg-[#121214] p-4 rounded-2xl border border-slate-800 space-y-2 text-left">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">Student UPI VPA</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono font-bold text-emerald-400 text-sm truncate">
+                  {campaign.upiId || 'Not Provided'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyUpi}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition flex items-center gap-1 shrink-0"
+                >
+                  <Copy className="w-3.5 h-3.5" /> {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Open any UPI app (GPay, PhonePe, Paytm), pay the amount to the UPI ID above, copy the transaction UTR number, and click continue.
+            </p>
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setShowUpiModal(false)}
+                className="w-1/2 py-3 bg-[#121214] hover:bg-slate-800 text-slate-400 font-semibold text-xs rounded-xl border border-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToUtr}
+                className="w-1/2 py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-lg shadow-blue-600/20"
+              >
+                I Have Paid →
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* <Footer /> */}
     </div>
   );
 }

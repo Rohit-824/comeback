@@ -51,6 +51,7 @@ interface UserPost {
   mediaType?: 'image' | 'video';
   mediaUrl?: string;
   upiId?: string;
+  qrCodeUrl?: string;
 }
 
 interface UserDonation {
@@ -136,7 +137,8 @@ export default function ProfilePage() {
           commentsCount: 0,
           mediaType: p.media_type,
           mediaUrl: p.media_url,
-          upiId: p.upi_id || 'Not Provided'
+          upiId: p.upi_id || 'Not Provided',
+          qrCodeUrl: p.qr_code_url || ''
         }));
         setUserPosts(mappedPosts);
         
@@ -180,6 +182,7 @@ export default function ProfilePage() {
 
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [upiId, setUpiId] = useState('');
+  const [qrCodeFile, setQrCodeFile] = useState<File | null>(null);
 
   const [collegeIdFile, setCollegeIdFile] = useState<File | null>(null);
   const [resultFile, setResultFile] = useState<File | null>(null);
@@ -245,6 +248,15 @@ export default function ProfilePage() {
       }
     }
 
+    let qrCodeUrl: string | undefined = undefined;
+    if (isFunding && qrCodeFile) {
+      try {
+        qrCodeUrl = await convertFileToBase64(qrCodeFile);
+      } catch (err) {
+        console.error('Error converting QR code to Base64', err);
+      }
+    }
+
     let collegeIdUrl: string | undefined = undefined;
     let marksheetUrl: string | undefined = undefined;
     let feeChallanUrl: string | undefined = undefined;
@@ -255,7 +267,7 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert directly into Supabase table using only UPI VPA
+    // Insert directly into Supabase table using UPI VPA and QR Code
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -271,7 +283,8 @@ export default function ProfilePage() {
         status: isFunding ? 'pending_verification' : 'active',
         media_type: mediaType || null,
         media_url: mediaUrl || null,
-        upi_id: isFunding ? upiId.trim() : null,                    // Only store UPI VPA
+        upi_id: isFunding ? upiId.trim() : null,
+        qr_code_url: isFunding ? qrCodeUrl || null : null,        // <--- Saved QR Code URL
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,
@@ -298,7 +311,8 @@ export default function ProfilePage() {
         commentsCount: 0,
         mediaType: data[0].media_type,
         mediaUrl: data[0].media_url,
-        upiId: data[0].upi_id
+        upiId: data[0].upi_id,
+        qrCodeUrl: data[0].qr_code_url
       };
       setUserPosts([newCreatedPost, ...userPosts]);
     }
@@ -310,6 +324,7 @@ export default function ProfilePage() {
     setNewSubjectCode('');
     setNewSubjectGrade('');
     setUpiId('');
+    setQrCodeFile(null);
     setMediaFile(null);
     setCollegeIdFile(null);
     setResultFile(null);
@@ -855,6 +870,25 @@ export default function ProfilePage() {
                         placeholder="e.g. rohit@okicici"
                         className="w-full bg-[#181818] border border-slate-800 focus:border-blue-500 text-white rounded-xl p-2.5 focus:outline-none text-xs font-mono"
                       />
+                    </div>
+
+                    <div className="space-y-1.5 pt-2">
+                      <label className="text-xs font-semibold text-slate-300 block">Upload Payment QR Code (Image) *</label>
+                      <div className="bg-[#181818] p-3 rounded-xl border border-slate-800 flex items-center justify-between">
+                        <span className="text-slate-400 text-xs truncate max-w-[200px]">
+                          {qrCodeFile ? qrCodeFile.name : 'Choose QR Code Image'}
+                        </span>
+                        <label className="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer transition flex items-center gap-1.5 shrink-0">
+                          <ImageIcon className="w-3.5 h-3.5" /> Upload QR
+                          <input 
+                            type="file" 
+                            required 
+                            accept="image/*" 
+                            onChange={(e) => setQrCodeFile(e.target.files?.[0] || null)} 
+                            className="hidden" 
+                          />
+                        </label>
+                      </div>
                     </div>
                   </div>
 
