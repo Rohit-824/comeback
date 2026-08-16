@@ -7,13 +7,11 @@ import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
 import { supabase } from '@/lib/supabase';
-import jsQR from 'jsqr';
 import { 
   ArrowLeft, 
   Sparkles, 
   CheckCircle2, 
   FileCheck2, 
-  Building2,
   Heart,
   Check,
   QrCode,
@@ -56,10 +54,10 @@ export default function DonatePage() {
   const [encouragingNote, setEncouragingNote] = useState('');
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [decodedUpiLink, setDecodedUpiLink] = useState<string | null>(null);
 
-  // MANUAL UTR VERIFICATION STATE
+  // MANUAL UTR & MODAL STATE
   const [step, setStep] = useState<'amount' | 'utr'>('amount');
+  const [showQrModal, setShowQrModal] = useState(false);
   const [utrNumber, setUtrNumber] = useState('');
   const [copied, setCopied] = useState(false);
 
@@ -98,39 +96,10 @@ export default function DonatePage() {
 
       setCampaign(foundPost);
       setLoading(false);
-
-      // AUTOMATICALLY DECODE QR CODE IN BACKGROUND (WITHOUT CAMERA)
-      if (foundPost?.qrCodeUrl) {
-        decodeQrImage(foundPost.qrCodeUrl, foundPost.upiId, foundPost.studentName, foundPost.title);
-      }
     };
 
     loadPostData();
   }, [postId]);
-
-  // Decode Base64/URL QR Image programmatically using jsQR
-  const decodeQrImage = (imgSrc: string, fallbackUpi?: string, studentName?: string, title?: string) => {
-    const img = new Image();
-    img.crossOrigin = 'Anonymous';
-    img.src = imgSrc;
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      canvas.width = img.width;
-      canvas.height = img.height;
-      ctx.drawImage(img, 0, 0);
-      const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-      const qrCode = jsQR(imgData.data, imgData.width, imgData.height);
-
-      if (qrCode && qrCode.data) {
-        setDecodedUpiLink(qrCode.data);
-      } else if (fallbackUpi && fallbackUpi !== 'Not Provided') {
-        // Fallback: construct standard UPI link from VPA if QR decode fails
-        setDecodedUpiLink(`upi://pay?pa=${fallbackUpi}&pn=${encodeURIComponent(studentName || 'Student')}&cu=INR&tn=${encodeURIComponent(`Support for ${title || 'Fee Appeal'}`)}`);
-      }
-    };
-  };
 
   const handleAmountSelect = (amount: number) => {
     setSelectedAmount(amount);
@@ -156,23 +125,7 @@ export default function DonatePage() {
     }
 
     requireAuthAction(() => {
-      // Launch UPI App directly using decoded link with dynamic amount injected
-      let finalLink = decodedUpiLink || `upi://pay?pa=${campaign.upiId}&pn=${encodeURIComponent(campaign.studentName || 'Student')}&cu=INR`;
-      
-      // Inject selected amount dynamically into the UPI string
-      if (finalLink.includes('&am=')) {
-        finalLink = finalLink.replace(/&am=[^&]*/, `&am=${selectedAmount}`);
-      } else {
-        finalLink += `&am=${selectedAmount}`;
-      }
-
-      if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
-        window.location.href = finalLink;
-      } else {
-        alert(`Computer detected. Please scan the student's QR code or pay ₹${selectedAmount} to UPI ID: ${campaign.upiId}`);
-      }
-
-      setStep('utr');
+      setShowQrModal(true);
     });
   };
 
@@ -182,6 +135,21 @@ export default function DonatePage() {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
+  };
+
+  const handleOpenUpiAppDirect = () => {
+    const targetUpi = campaign?.upiId;
+    if (!targetUpi || targetUpi === 'Not Provided') {
+      alert('Error: No valid UPI ID found.');
+      return;
+    }
+    const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(campaign?.studentName || 'Student')}&am=${selectedAmount}&cu=INR`;
+    window.location.href = upiLink;
+  };
+
+  const handleProceedToUtr = () => {
+    setShowQrModal(false);
+    setStep('utr');
   };
 
   const handleVerifyAndSubmit = async (e: React.FormEvent) => {
@@ -355,7 +323,7 @@ export default function DonatePage() {
         {/* TWO COLUMN CAMPAIGN LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* LEFT COLUMN: APPEAL DETAILS & QR PREVIEW */}
+          {/* LEFT COLUMN: APPEAL DETAILS (WITHOUT QR BOX) */}
           <div className="lg:col-span-7 bg-[#1C1C1E] border border-slate-800/90 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
             
             <div className="space-y-3">
@@ -417,33 +385,31 @@ export default function DonatePage() {
               </div>
             </div>
 
-            {/* QR CODE & UPI DISPLAY */}
             <div className="space-y-3 pt-2 border-t border-slate-800">
-              <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Building2 className="w-4 h-4" /> VERIFIED PAYMENT QR & UPI DESTINATION
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-wider flex items-center gap-1.5">
+                <FileCheck2 className="w-4 h-4 text-emerald-400" /> UPLOADED & VERIFIED DOCUMENTS
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center bg-[#121214] p-4 rounded-2xl border border-slate-800">
-                {campaign.qrCodeUrl ? (
-                  <div className="sm:col-span-4 bg-white p-2 rounded-xl flex items-center justify-center">
-                    <img src={campaign.qrCodeUrl} alt="Payment QR Code" className="w-32 h-32 object-contain rounded" />
-                  </div>
-                ) : null}
+              <div className="space-y-2 text-xs">
+                <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <span className="font-medium text-slate-200">Official Marks Record / Re-appear Notice</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800 flex items-center gap-1 text-[11px]">
+                    <Check className="w-3 h-3" /> Checked
+                  </span>
+                </div>
 
-                <div className={`${campaign.qrCodeUrl ? 'sm:col-span-8' : 'sm:col-span-12'} space-y-2 text-xs`}>
-                  <div>
-                    <span className="text-[10px] text-slate-500 font-bold uppercase block">UPI VPA ID</span>
-                    <span className="font-mono font-bold text-emerald-400 text-sm truncate block">
-                      {campaign.upiId || 'Not Provided'}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={handleCopyUpi}
-                    className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg transition flex items-center gap-1.5"
-                  >
-                    <Copy className="w-3.5 h-3.5" /> {copied ? 'Copied UPI ID!' : 'Copy UPI ID'}
-                  </button>
+                <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <span className="font-medium text-slate-200">College ID & Roll Number Verified</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800 flex items-center gap-1 text-[11px]">
+                    <Check className="w-3 h-3" /> Checked
+                  </span>
+                </div>
+
+                <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
+                  <span className="font-medium text-slate-200">Student UPI ID Verified</span>
+                  <span className="text-emerald-400 font-bold bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800 flex items-center gap-1 text-[11px]">
+                    <Check className="w-3 h-3" /> Checked
+                  </span>
                 </div>
               </div>
             </div>
@@ -526,7 +492,7 @@ export default function DonatePage() {
                   type="submit"
                   className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm uppercase tracking-wider rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2 active:scale-95"
                 >
-                  <QrCode className="w-4 h-4" /> Pay ₹{selectedAmount || 0} via UPI & Open App
+                  <QrCode className="w-4 h-4" /> PAY ₹{selectedAmount || 0} VIA UPI
                 </button>
 
                 <p className="text-[11px] text-slate-500 text-center font-mono">
@@ -539,19 +505,27 @@ export default function DonatePage() {
                 
                 <div className="bg-amber-950/30 border border-amber-800/50 rounded-2xl p-4 space-y-2">
                   <h4 className="text-xs font-black text-amber-400 uppercase flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4" /> Payment Instructions
+                    <Sparkles className="w-4 h-4" /> PAYMENT INSTRUCTIONS
                   </h4>
                   <ul className="text-[11px] text-slate-300 space-y-1.5 list-decimal pl-3 leading-relaxed">
-                    <li>Scan the student's QR code or pay <strong>₹{selectedAmount}</strong> via their UPI ID.</li>
-                    <li>Complete the transaction in your UPI App.</li>
-                    <li>Copy the <strong>12-digit UTR / Ref Number</strong> from your payment success screen.</li>
+                    <li>Click the button below to pay <strong>₹{selectedAmount}</strong>.</li>
+                    <li>Complete the payment in your UPI App.</li>
+                    <li>Copy the <strong>12-digit UTR/Ref Number</strong> from your payment success screen.</li>
                     <li>Paste the number below and click <strong>Verify & Submit</strong>.</li>
                   </ul>
                 </div>
 
+                <button
+                  type="button"
+                  onClick={handleOpenUpiAppDirect}
+                  className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider rounded-xl transition flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                >
+                  <ExternalLink className="w-4 h-4" /> 1. OPEN UPI APP & PAY ₹{selectedAmount}
+                </button>
+
                 <div className="space-y-1.5">
                   <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider block">
-                    ENTER 12-DIGIT UTR / UPI REF NO. *
+                    2. ENTER 12-DIGIT UTR / UPI REF NO. *
                   </label>
                   <input
                     type="text"
@@ -580,7 +554,7 @@ export default function DonatePage() {
                     className="w-2/3 py-3 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-black text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
                   >
                     <Send className="w-4 h-4" />
-                    {isProcessing ? 'Verifying...' : 'Verify & Submit'}
+                    {isProcessing ? 'Verifying...' : 'VERIFY & SUBMIT'}
                   </button>
                 </div>
               </form>
@@ -592,7 +566,75 @@ export default function DonatePage() {
 
       </main>
 
-    {/* <Footer /> */}
+      {/* QR CODE & UPI POPUP MODAL (TRIGGERS UPON CLICKING PAY) */}
+      {showQrModal && (
+        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-sans">
+          <div className="bg-[#1C1C1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-6 shadow-2xl relative text-center">
+            
+            <button 
+              onClick={() => setShowQrModal(false)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="space-y-2">
+              <h2 className="text-lg font-black text-white">Scan & Pay ₹{selectedAmount}</h2>
+              <p className="text-xs text-slate-400">
+                Scan QR or copy UPI ID to support <strong className="text-white">{studentName}</strong>.
+              </p>
+            </div>
+
+            {/* QR Code Display Box */}
+            {campaign.qrCodeUrl ? (
+              <div className="bg-white p-3 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-lg border border-slate-700">
+                <img src={campaign.qrCodeUrl} alt="Student Payment QR" className="w-full h-full object-contain rounded" />
+              </div>
+            ) : (
+              <div className="bg-[#121214] p-6 rounded-2xl border border-slate-800 text-slate-400 text-xs">
+                No QR image uploaded by student. Please use UPI ID below.
+              </div>
+            )}
+
+            {/* UPI ID Copy Box */}
+            <div className="bg-[#121214] p-3.5 rounded-2xl border border-slate-800 space-y-1 text-left">
+              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">UPI VPA ID</span>
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-mono font-bold text-emerald-400 text-xs truncate">
+                  {campaign.upiId || 'Not Provided'}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleCopyUpi}
+                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
+                >
+                  <Copy className="w-3 h-3" /> {copied ? 'Copied!' : 'Copy'}
+                </button>
+              </div>
+            </div>
+
+            <div className="pt-1 flex gap-2">
+              <button
+                type="button"
+                onClick={() => setShowQrModal(false)}
+                className="w-1/2 py-2.5 bg-[#121214] hover:bg-slate-800 text-slate-400 font-bold text-xs rounded-xl border border-slate-800 transition"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleProceedToUtr}
+                className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-600/20"
+              >
+                I Have Paid →
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      <Footer />
     </div>
   );
 }
