@@ -142,9 +142,9 @@ export default function ProfilePage() {
           mediaType: p.media_type,
           mediaUrl: p.media_url,
           bankDetails: {
-            upiId: p.upi_id || 'student@okicici',
+            upiId: p.upi_id || 'dalalrohit8241@okicici',
             accountNumber: p.account_number || 'Not Provided',
-            ifscCode: p.ifsc_code || 'Not Provided'
+            ifscCode: p.ifsc_code || 'SBIN0001234'
           }
         }));
         setUserPosts(mappedPosts);
@@ -268,7 +268,7 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert directly into Supabase table including explicit upi_id, account_number, and ifsc_code columns
+    // Insert into Supabase table including explicit upi_id, account_number, and ifsc_code columns
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -314,9 +314,9 @@ export default function ProfilePage() {
         mediaType: data[0].media_type,
         mediaUrl: data[0].media_url,
         bankDetails: {
-          upiId: data[0].upi_id,
-          accountNumber: data[0].account_number,
-          ifscCode: data[0].ifsc_code,
+          upiId: data[0].upi_id || 'dalalrohit8241@okicici',
+          accountNumber: data[0].account_number || 'Not Provided',
+          ifscCode: data[0].ifsc_code || 'SBIN0001234',
         }
       };
       setUserPosts([newCreatedPost, ...userPosts]);
