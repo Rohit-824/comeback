@@ -59,6 +59,7 @@ interface UserDonation {
   txId: string;
   razorpayId: string;
   donorName: string;
+  donorEmail?: string;
   studentName: string;
   studentCollege: string;
   studentUpi: string;
@@ -267,7 +268,6 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert directly into Supabase table using UPI VPA and QR Code
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -284,7 +284,7 @@ export default function ProfilePage() {
         media_type: mediaType || null,
         media_url: mediaUrl || null,
         upi_id: isFunding ? upiId.trim() : null,
-        qr_code_url: isFunding ? qrCodeUrl || null : null,        // <--- Saved QR Code URL
+        qr_code_url: isFunding ? qrCodeUrl || null : null,
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,
@@ -955,59 +955,118 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* RECEIPT MODAL */}
+      {/* FORMAL RECEIPT MODAL */}
       {selectedReceipt && (
         <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 font-sans">
-          <div className="bg-[#1C1C1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-6 shadow-2xl relative">
+          <div className="bg-[#1C1C1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-lg w-full max-h-[90vh] overflow-y-auto space-y-6 shadow-2xl relative text-slate-100">
             
             <button 
               onClick={() => setSelectedReceipt(null)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg"
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg z-10"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <div className="text-center space-y-2">
-              <div className="w-12 h-12 bg-emerald-900/40 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-800/60 mb-4">
-                <CheckCircle2 className="w-6 h-6" />
+            {/* FORMAL RECEIPT CARD DESIGN */}
+            <div className="bg-white text-slate-900 rounded-2xl p-6 sm:p-8 space-y-6 shadow-inner border border-slate-200">
+              
+              {/* TOP HEADER */}
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center border-b border-slate-200 pb-5 gap-3">
+                <div>
+                  <h1 className="text-2xl font-black tracking-tight text-blue-600">comeBack</h1>
+                  <p className="text-[11px] text-slate-500 font-medium">Direct Peer-to-Peer Student Support Network</p>
+                  <p className="text-[10px] text-blue-500 font-medium">collegeeasy.official@gmail.com • 0% Platform Commission</p>
+                </div>
+                <div className="text-right">
+                  <span className="bg-emerald-100 text-emerald-800 text-[10px] font-black px-2.5 py-1 rounded-full uppercase tracking-wider inline-block mb-1">
+                    Direct Payment Slip
+                  </span>
+                  <p className="text-[10px] text-slate-500 font-mono">Receipt ID: {selectedReceipt.txId}</p>
+                </div>
               </div>
-              <h2 className="text-3xl font-black text-white">₹{selectedReceipt.amount}.00</h2>
-              <p className="text-[11px] font-bold text-emerald-400 tracking-widest uppercase">Transaction Successful</p>
+
+              {/* META INFO GRID */}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-xl border border-slate-100 text-xs">
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Date</span>
+                  <span className="font-semibold text-slate-800">{selectedReceipt.date}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Time</span>
+                  <span className="font-semibold text-slate-800">{selectedReceipt.time}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Gateway Ref</span>
+                  <span className="font-semibold text-slate-800 font-mono text-[10px] truncate block">{selectedReceipt.razorpayId}</span>
+                </div>
+                <div>
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Payout Fee</span>
+                  <span className="font-semibold text-emerald-600">₹0.00 (0% Fee)</span>
+                </div>
+              </div>
+
+              {/* DONOR & BENEFICIARY CARDS */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block border-b border-slate-200 pb-1 mb-2">Donor Details</span>
+                  <p className="font-bold text-slate-800">Name: <span className="font-normal">{selectedReceipt.donorName}</span></p>
+                  <p className="font-bold text-slate-800">Email: <span className="font-normal font-mono text-[11px]">{selectedReceipt.donorEmail || 'student@dtu.ac.in'}</span></p>
+                </div>
+
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-1">
+                  <span className="text-[9px] font-black text-slate-400 uppercase tracking-wider block border-b border-slate-200 pb-1 mb-2">Direct Beneficiary</span>
+                  <p className="font-bold text-slate-800">Student: <span className="font-normal">{selectedReceipt.studentName}</span></p>
+                  <p className="font-bold text-slate-800">College: <span className="font-normal">{selectedReceipt.studentCollege}</span></p>
+                  <p className="font-bold text-slate-800 truncate">UPI/VPA: <span className="font-normal font-mono text-[10px] text-emerald-700">{selectedReceipt.studentUpi}</span></p>
+                </div>
+              </div>
+
+              {/* DESCRIPTION & AMOUNTS */}
+              <div className="space-y-3 pt-2">
+                <div className="flex justify-between text-xs font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200 pb-2">
+                  <span>Description</span>
+                  <span>Amount (INR)</span>
+                </div>
+
+                <div className="flex justify-between items-center text-xs font-bold text-slate-800">
+                  <span>Direct Exam Re-Appear Fee Contribution ({selectedReceipt.subjectCode || 'Fee Support'})</span>
+                  <span className="font-mono">₹{selectedReceipt.amount}.00</span>
+                </div>
+
+                <div className="flex justify-between items-center text-[11px] text-slate-400 italic border-b border-slate-200 pb-3">
+                  <span>comeBACK Platform Fee</span>
+                  <span className="font-mono">₹0.00</span>
+                </div>
+              </div>
+
+              {/* TOTAL TRANSFER */}
+              <div className="flex justify-between items-center bg-blue-50/60 p-4 rounded-xl border border-blue-100">
+                <span className="text-xs font-black text-blue-900 uppercase tracking-wider">Total Direct Transfer to Student</span>
+                <span className="text-xl font-black text-blue-600 font-mono">₹{selectedReceipt.amount}.00</span>
+              </div>
+
+              {/* FOOTER SIGNATURE */}
+              <div className="flex justify-between items-end pt-4 border-t border-slate-200 text-xs">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full border-2 border-dashed border-emerald-500 flex items-center justify-center text-[9px] font-black text-emerald-600">
+                    100% P2P
+                  </div>
+                </div>
+                <div className="text-right space-y-0.5">
+                  <p className="font-black text-slate-800">Rohit Dalal</p>
+                  <p className="text-[10px] text-slate-400 uppercase tracking-wider font-bold">Platform Manager • ComeBack</p>
+                </div>
+              </div>
+
             </div>
 
-            <div className="bg-[#121214] rounded-2xl border border-slate-800 p-5 space-y-3.5 text-xs sm:text-sm">
-              <div className="flex justify-between border-b border-slate-800/80 pb-3">
-                <span className="text-slate-400">Paid to</span>
-                <span className="text-white font-bold text-right">
-                  {selectedReceipt.studentName} <br/>
-                  <span className="text-[10px] text-slate-500 font-normal">{selectedReceipt.studentCollege}</span>
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800/80 pb-3">
-                <span className="text-slate-400">UPI Ref / UTR</span>
-                <span className="text-white font-mono font-bold tracking-wide">
-                  {selectedReceipt.razorpayId.replace('UPI-UTR-', '')}
-                </span>
-              </div>
-              <div className="flex justify-between border-b border-slate-800/80 pb-3">
-                <span className="text-slate-400">Txn ID</span>
-                <span className="text-white font-mono font-bold tracking-wide">{selectedReceipt.txId}</span>
-              </div>
-              <div className="flex justify-between pb-1">
-                <span className="text-slate-400">Date & Time</span>
-                <span className="text-white text-right font-medium">
-                  {selectedReceipt.date} <br/>
-                  <span className="text-[10px] text-slate-500">{selectedReceipt.time}</span>
-                </span>
-              </div>
-            </div>
-
+            {/* ACTION BUTTON */}
             <div className="pt-2">
               <button
                 onClick={() => { window.print(); }}
-                className="w-full py-3.5 bg-[#121214] hover:bg-slate-800 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-xl border border-slate-800 transition flex items-center justify-center gap-2"
+                className="w-full py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition shadow-lg shadow-blue-600/30 flex items-center justify-center gap-2"
               >
-                <Printer className="w-4 h-4" /> Print / Save as PDF
+                <Printer className="w-4 h-4" /> Print / Save Slip as PDF
               </button>
             </div>
 

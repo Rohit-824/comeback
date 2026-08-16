@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
+import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { supabase, Profile } from '@/lib/supabase';
@@ -224,15 +225,15 @@ export default function AdminDashboardPage() {
             studentCollege: 'Netaji Subhas University of Technology (NSUT)',
             studentUpi: 'divyasingh@okicici',
             subjectCode: 'EC-202',
-            amount: 50,
-            date: '01 August 2026',
-            time: '03:05:11 PM'
+            amount: 375,
+            date: '16 August 2026',
+            time: '10:57:01 pm'
           }
         ];
       }
       setTransactions(loadedTransactions);
 
-      // 5. Analytics
+      // 5. Analytics Sync
       let registeredUserCount = 1;
       try {
         const { count, error } = await supabase
@@ -248,7 +249,7 @@ export default function AdminDashboardPage() {
       const totalVol = loadedTransactions.reduce((acc, curr) => acc + (curr.amount || 0), 0);
       const uniqueDonorsCount = new Set(loadedTransactions.map((tx: any) => tx.donorEmail || tx.donorName)).size;
       const verifiedAppealsCount = combinedPosts.filter(p => p.status === 'active' || p.category === 'funding').length;
-      
+
       let dtuCount = 0;
       let nsutCount = 0;
       let igdtuwCount = 0;
@@ -293,7 +294,7 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     const verifyAdminAccess = async () => {
       const { data: { session } } = await supabase.auth.getSession();
-      
+
       if (!session?.user) {
         setIsAdminAuthorized(false);
         return;
@@ -507,7 +508,7 @@ export default function AdminDashboardPage() {
       <Navbar />
 
       <main className="max-w-6xl mx-auto px-6 space-y-8 w-full my-auto">
-        
+
         {/* HEADER CONTROL BAR */}
         <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-purple-900/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6 shadow-2xl">
           <div className="flex items-center gap-4">
@@ -828,7 +829,7 @@ export default function AdminDashboardPage() {
 
         {/* TAB 4: TRANSACTIONS LOG */}
         {activeAdminTab === 'transactions' && (
-          <div className="bg-[#1E1E1E] rounded-3xl p-6 border border-slate-800 space-y-4">
+          <div className="bg-[#1E1E1E] rounded-3xl p-6 border border-slate-800 space-y-4 shadow-xl">
             <h2 className="text-base font-bold text-white flex items-center gap-2">
               <Receipt className="w-5 h-5 text-emerald-400" /> Platform P2P Transfer Audit Log
             </h2>
@@ -904,11 +905,11 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* RECEIPT PRINT MODAL FOR ADMIN */}
+      {/* FORMAL RECEIPT PRINT MODAL FOR ADMIN */}
       {selectedReceipt && (
         <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto font-sans">
           <div className="bg-white text-slate-900 rounded-[2.5rem] p-8 sm:p-10 max-w-2xl w-full space-y-6 shadow-2xl relative my-8 border border-slate-200 print:p-0 print:border-none print:shadow-none print:my-0">
-            
+
             <button 
               onClick={() => setSelectedReceipt(null)}
               className="absolute top-6 right-6 text-slate-400 hover:text-slate-800 p-1.5 rounded-full transition print:hidden"
