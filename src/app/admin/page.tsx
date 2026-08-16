@@ -118,17 +118,18 @@ export default function AdminDashboardPage() {
     ]
   });
 
-  // FETCH REAL DATA DIRECTLY FROM SUPABASE DATABASE
+  // FETCH REAL DATA DIRECTLY FROM SUPABASE DATABASE & LOCALSTORAGE FALLBACK
   useEffect(() => {
     const loadAdminData = async () => {
-      // 1. Fetch Posts & Appeals directly from Supabase 'posts' table
+      let combinedPosts: AdminPost[] = [];
+
+      // 1. Fetch from Supabase Table First
       const { data: postsData, error: postsError } = await supabase
         .from('posts')
         .select('*')
         .order('created_at', { ascending: false });
 
-      let combinedPosts: AdminPost[] = [];
-      if (!postsError && postsData) {
+      if (!postsError && postsData && postsData.length > 0) {
         combinedPosts = postsData.map((p: any) => ({
           id: p.id,
           title: p.title,
@@ -141,16 +142,49 @@ export default function AdminDashboardPage() {
           subjectGrade: p.subject_grade,
           goal: p.goal || 0,
           raised: p.raised || 0,
-          status: p.status || 'active',
+          status: p.status || 'pending_verification',
           datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
           mediaType: p.media_type,
           mediaUrl: p.media_url,
         }));
       }
 
+      // 2. Fallback / Merge with LocalStorage posts if any exist locally
+      const savedUser = localStorage.getItem('user_posts');
+      if (savedUser) {
+        try {
+          const parsed = JSON.parse(savedUser);
+          if (Array.isArray(parsed)) {
+            parsed.forEach((localPost: any) => {
+              if (!combinedPosts.some(p => p.id === localPost.id)) {
+                combinedPosts.push(localPost);
+              }
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      const savedFeed = localStorage.getItem('feed_posts');
+      if (savedFeed) {
+        try {
+          const parsedFeed = JSON.parse(savedFeed);
+          if (Array.isArray(parsedFeed)) {
+            parsedFeed.forEach((fPost: any) => {
+              if (!combinedPosts.some(p => p.id === fPost.id)) {
+                combinedPosts.push(fPost);
+              }
+            });
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
       setAllPosts(combinedPosts);
 
-      // 2. Fetch Flagged Comments
+      // 3. Fetch Flagged Comments
       const savedReports = localStorage.getItem('adminCommentReports');
       if (savedReports) {
         try {
@@ -161,7 +195,7 @@ export default function AdminDashboardPage() {
         }
       }
 
-      // 3. Fetch Real Global Transactions Log
+      // 4. Fetch Real Global Transactions Log
       let loadedTransactions: TransactionRecord[] = [];
       const globalTx = localStorage.getItem('global_transactions');
       if (globalTx) {
@@ -194,7 +228,7 @@ export default function AdminDashboardPage() {
       }
       setTransactions(loadedTransactions);
 
-      // 4. Fetch Registered Users Count from Supabase
+      // 5. Analytics Setup
       let registeredUserCount = 1;
       try {
         const { count, error } = await supabase
@@ -305,15 +339,10 @@ export default function AdminDashboardPage() {
     const updatedPosts = allPosts.map(p => p.id === post.id ? { ...p, status: 'active' as const } : p);
     setAllPosts(updatedPosts);
 
-    // Update status in Supabase database
-    const { error } = await supabase
+    await supabase
       .from('posts')
       .update({ status: 'active' })
       .eq('id', post.id);
-
-    if (error) {
-      console.error('Error approving post in Supabase:', error.message);
-    }
 
     try {
       await fetch('/api/send-status-email', {
