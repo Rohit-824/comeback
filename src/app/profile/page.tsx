@@ -279,10 +279,11 @@ export default function ProfilePage() {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
-        subject_code: isFunding ? newSubjectCode : newDiscussionTag, // <--- Stores the category tag here safely!
+        discussionTag: !isFunding ? newDiscussionTag : 'Fee Appeal',
         student_name: currentUser?.full_name || 'Rohit Dalal',
         student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
         college: currentUser?.college || 'DTU',
+        subject_code: isFunding ? newSubjectCode : null,
         subject_grade: isFunding ? newSubjectGrade : null,
         goal: isFunding ? newGoal : 0,
         raised: 0,
