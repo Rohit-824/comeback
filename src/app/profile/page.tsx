@@ -116,7 +116,6 @@ export default function ProfilePage() {
   // LOAD REAL USER DATA FROM SUPABASE
   useEffect(() => {
     async function fetchProfileData() {
-      // 1. Fetch Posts from Supabase Database
       const { data: postsData, error } = await supabase
         .from('posts')
         .select('*')
@@ -143,7 +142,7 @@ export default function ProfilePage() {
           mediaUrl: p.media_url,
           bankDetails: {
             upiId: p.upi_id || 'dalalrohit8241@okicici',
-            accountNumber: p.account_number || 'Not Provided',
+            accountNumber: p.account_number || '123456789012',
             ifscCode: p.ifsc_code || 'SBIN0001234'
           }
         }));
@@ -154,7 +153,6 @@ export default function ProfilePage() {
         setSavedPostsList(uniqueSaved);
       }
 
-      // 2. Real Donations History
       const userDonations = localStorage.getItem('user_donations');
       if (userDonations) {
         try {
@@ -165,7 +163,6 @@ export default function ProfilePage() {
         }
       }
 
-      // 3. Real User Activities
       const userActivities = localStorage.getItem('user_activities');
       if (userActivities) {
         try {
@@ -268,7 +265,7 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert into Supabase table including explicit upi_id, account_number, and ifsc_code columns
+    // Insert into Supabase table including explicit upi_id, account_number, and ifsc_code columns with fallbacks
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -284,9 +281,9 @@ export default function ProfilePage() {
         status: isFunding ? 'pending_verification' : 'active',
         media_type: mediaType || null,
         media_url: mediaUrl || null,
-        upi_id: isFunding ? upiId : null,
-        account_number: isFunding ? accountNumber : null,
-        ifsc_code: isFunding ? ifscCode : null,
+        upi_id: isFunding ? (upiId ? upiId.trim() : 'dalalrohit8241@okicici') : null,
+        account_number: isFunding ? (accountNumber ? accountNumber.trim() : '123456789012') : null,
+        ifsc_code: isFunding ? (ifscCode ? ifscCode.trim() : 'SBIN0001234') : null,
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,
@@ -314,9 +311,9 @@ export default function ProfilePage() {
         mediaType: data[0].media_type,
         mediaUrl: data[0].media_url,
         bankDetails: {
-          upiId: data[0].upi_id || 'dalalrohit8241@okicici',
-          accountNumber: data[0].account_number || 'Not Provided',
-          ifscCode: data[0].ifsc_code || 'SBIN0001234',
+          upiId: data[0].upi_id,
+          accountNumber: data[0].account_number,
+          ifscCode: data[0].ifsc_code,
         }
       };
       setUserPosts([newCreatedPost, ...userPosts]);
@@ -918,7 +915,7 @@ export default function ProfilePage() {
 
                     <div className="bg-[#181818] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
                       <span className="text-slate-400">2. Marksheet / Result Sheet:</span>
-                      <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded cursor-pointer transition">
+                      <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-ln rounded cursor-pointer transition">
                         {resultFile ? resultFile.name : 'Choose File'}
                         <input type="file" required accept="image/*,.pdf" onChange={(e) => setResultFile(e.target.files?.[0] || null)} className="hidden" />
                       </label>
