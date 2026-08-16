@@ -266,14 +266,15 @@ export default function ProfilePage() {
     }
 
     // Insert into Supabase table including explicit upi_id, account_number, and ifsc_code columns with fallbacks
+    // Insert directly into Supabase table using only the user's actual input
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
         subject_code: isFunding ? newSubjectCode : newDiscussionTag,
-        student_name: currentUser?.full_name || 'Rohit Dalal',
-        student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
+        student_name: currentUser?.full_name || 'Student Account',
+        student_email: currentUser?.email || user?.email || 'student@dtu.ac.in',
         college: currentUser?.college || 'DTU',
         subject_grade: isFunding ? newSubjectGrade : null,
         goal: isFunding ? newGoal : 0,
@@ -281,9 +282,9 @@ export default function ProfilePage() {
         status: isFunding ? 'pending_verification' : 'active',
         media_type: mediaType || null,
         media_url: mediaUrl || null,
-        upi_id: isFunding ? (upiId ? upiId.trim() : 'dalalrohit8241@okicici') : null,
-        account_number: isFunding ? (accountNumber ? accountNumber.trim() : '123456789012') : null,
-        ifsc_code: isFunding ? (ifscCode ? ifscCode.trim() : 'SBIN0001234') : null,
+        upi_id: isFunding ? upiId.trim() : null,                  // <--- User's exact typed UPI ID
+        account_number: isFunding ? accountNumber.trim() : null,  // <--- User's exact typed Account No.
+        ifsc_code: isFunding ? ifscCode.trim() : null,            // <--- User's exact typed IFSC Code
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,

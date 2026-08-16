@@ -73,7 +73,7 @@ export default function DonatePage() {
     const loadPostData = async () => {
       let foundPost: FeeAppealPost | null = null;
 
-      // 1. Query Supabase Database Table First
+      // 1. Query Supabase Database Table First and map exact columns
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -96,9 +96,9 @@ export default function DonatePage() {
           raised: data.raised || 0,
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
           bankDetails: {
-            upiId: data.upi_id || 'dalalrohit8241@okicici',
+            upiId: data.upi_id || 'Not Provided',
             accountNumber: data.account_number || 'Not Provided',
-            ifscCode: data.ifsc_code || 'SBIN0001234'
+            ifscCode: data.ifsc_code || 'Not Provided'
           }
         };
       }
@@ -115,9 +115,9 @@ export default function DonatePage() {
                 foundPost = {
                   ...matched,
                   bankDetails: matched.bankDetails || {
-                    upiId: matched.upi_id || 'dalalrohit8241@okicici',
+                    upiId: matched.upi_id || 'Not Provided',
                     accountNumber: matched.account_number || 'Not Provided',
-                    ifscCode: matched.ifsc_code || 'SBIN0001234'
+                    ifscCode: matched.ifsc_code || 'Not Provided'
                   }
                 };
               }
@@ -139,9 +139,9 @@ export default function DonatePage() {
                 foundPost = {
                   ...matched,
                   bankDetails: matched.bankDetails || {
-                    upiId: matched.upi_id || 'dalalrohit8241@okicici',
+                    upiId: matched.upi_id || 'Not Provided',
                     accountNumber: matched.account_number || 'Not Provided',
-                    ifscCode: matched.ifsc_code || 'SBIN0001234'
+                    ifscCode: matched.ifsc_code || 'Not Provided'
                   }
                 };
               }
@@ -150,30 +150,6 @@ export default function DonatePage() {
             console.error('Error parsing feed_posts:', e);
           }
         }
-      }
-
-      // 3. Mock fallback for hardcoded testing routes (post-1 / post-101)
-      if (!foundPost && (postId === 'post-1' || postId === 'post-101')) {
-        foundPost = {
-          id: postId,
-          title: 'Just ₹50 away from clearing Digital Electronics re-appear fee',
-          story: 'I suffered a severe anxiety attack right before the Digital Electronics mid-semester exam, leading to a medical emergency and missed paper. The college requires a ₹2,000 back fee to clear the re-appear exam.',
-          category: 'funding',
-          studentName: 'Divya Singh',
-          studentEmail: 'divyasingh@nsut.ac.in',
-          college: 'NSUT (Netaji Subhas University of Technology)',
-          branch: 'Electronics & Communication Engineering',
-          year: '2nd Year',
-          subjectCode: 'EC-202',
-          goal: 2000,
-          raised: 1950,
-          datePosted: '1 day ago',
-          bankDetails: {
-            upiId: 'divyasingh@okicici',
-            accountNumber: '123456789012',
-            ifscCode: 'SBIN0001234'
-          }
-        };
       }
 
       setCampaign(foundPost);
@@ -212,7 +188,12 @@ export default function DonatePage() {
   };
 
   const handleOpenUpiApp = () => {
-    const targetUpi = campaign?.bankDetails?.upiId || 'dalalrohit8241@okicici';
+    const targetUpi = campaign?.bankDetails?.upiId;
+    if (!targetUpi || targetUpi === 'Not Provided') {
+      alert('Error: No valid UPI ID found for this student account.');
+      return;
+    }
+
     const studentName = campaign?.studentName || 'Student';
     const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(studentName)}&am=${selectedAmount}&cu=INR&tn=${encodeURIComponent(`ComeBack Donation for ${campaign?.title || 'Fee Support'}`)}`;
     
@@ -236,7 +217,6 @@ export default function DonatePage() {
     const donorEmailAddress = currentUser?.email || user?.email || 'donor@dtu.ac.in';
 
     const newRaised = (campaign?.raised || 0) + selectedAmount;
-    const updatedCampaign = { ...campaign, raised: newRaised };
 
     await supabase
       .from('posts')
@@ -250,10 +230,10 @@ export default function DonatePage() {
       razorpayId: `UPI-UTR-${utrNumber.trim()}`,
       donorName: donorDisplayName,
       donorEmail: donorEmailAddress,
-      studentName: campaign?.studentName || 'Divya Singh',
-      studentEmail: campaign?.studentEmail || 'student@nsut.ac.in',
-      studentCollege: campaign?.college || 'NSUT',
-      studentUpi: campaign?.bankDetails?.upiId || 'student@upi',
+      studentName: campaign?.studentName || 'Student',
+      studentEmail: campaign?.studentEmail || 'student@dtu.ac.in',
+      studentCollege: campaign?.college || 'DTU',
+      studentUpi: campaign?.bankDetails?.upiId || 'Not Provided',
       subjectCode: campaign?.subjectCode || 'Exam Fee',
       campaignTitle: campaign?.title,
       amount: selectedAmount,
@@ -467,7 +447,7 @@ export default function DonatePage() {
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
                   <span className="text-[10px] text-slate-500 font-bold uppercase block">UPI VPA</span>
                   <span className="font-mono font-bold text-emerald-400 truncate block">
-                    {campaign.bankDetails?.upiId || 'dalalrohit8241@okicici'}
+                    {campaign.bankDetails?.upiId || 'Not Provided'}
                   </span>
                 </div>
 
