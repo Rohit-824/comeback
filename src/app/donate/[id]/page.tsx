@@ -592,7 +592,7 @@ export default function DonatePage() {
 
       </main>
 
-      {/* <Footer /> */}
+    {/* <Footer /> */}
     </div>
   );
 }
