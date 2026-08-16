@@ -16,9 +16,7 @@ import {
   Check,
   QrCode,
   Send,
-  ExternalLink,
-  Copy,
-  X
+  ExternalLink
 } from 'lucide-react';
 
 interface FeeAppealPost {
@@ -36,7 +34,6 @@ interface FeeAppealPost {
   raised?: number;
   datePosted: string;
   upiId?: string;
-  qrCodeUrl?: string;
 }
 
 export default function DonatePage() {
@@ -55,11 +52,9 @@ export default function DonatePage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  // MANUAL UTR & MODAL STATE
+  // STEP & UTR VERIFICATION STATE
   const [step, setStep] = useState<'amount' | 'utr'>('amount');
-  const [showQrModal, setShowQrModal] = useState(false);
   const [utrNumber, setUtrNumber] = useState('');
-  const [copied, setCopied] = useState(false);
 
   // FETCH CAMPAIGN WITH SUPABASE
   useEffect(() => {
@@ -89,8 +84,7 @@ export default function DonatePage() {
           goal: data.goal || 2000,
           raised: data.raised || 0,
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
-          upiId: data.upi_id || 'Not Provided',
-          qrCodeUrl: data.qr_code_url || ''
+          upiId: data.upi_id || 'Not Provided'
         };
       }
 
@@ -125,31 +119,25 @@ export default function DonatePage() {
     }
 
     requireAuthAction(() => {
-      setShowQrModal(true);
+      setStep('utr');
     });
-  };
-
-  const handleCopyUpi = () => {
-    if (campaign?.upiId) {
-      navigator.clipboard.writeText(campaign.upiId);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
   };
 
   const handleOpenUpiAppDirect = () => {
     const targetUpi = campaign?.upiId;
     if (!targetUpi || targetUpi === 'Not Provided') {
-      alert('Error: No valid UPI ID found.');
+      alert('Error: No valid UPI ID found for this student account.');
       return;
     }
-    const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(campaign?.studentName || 'Student')}&am=${selectedAmount}&cu=INR`;
-    window.location.href = upiLink;
-  };
 
-  const handleProceedToUtr = () => {
-    setShowQrModal(false);
-    setStep('utr');
+    const studentName = campaign?.studentName || 'Student';
+    const upiLink = `upi://pay?pa=${targetUpi}&pn=${encodeURIComponent(studentName)}&am=${selectedAmount}&cu=INR&tn=${encodeURIComponent(`ComeBack Donation for ${campaign?.title || 'Fee Support'}`)}`;
+    
+    if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+      window.location.href = upiLink;
+    } else {
+      alert(`Since you are on a computer, please open your phone and pay ₹${selectedAmount} to this exact UPI ID:\n\n${targetUpi}`);
+    }
   };
 
   const handleVerifyAndSubmit = async (e: React.FormEvent) => {
@@ -323,7 +311,7 @@ export default function DonatePage() {
         {/* TWO COLUMN CAMPAIGN LAYOUT */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* LEFT COLUMN: APPEAL DETAILS (WITHOUT QR BOX) */}
+          {/* LEFT COLUMN: APPEAL DETAILS */}
           <div className="lg:col-span-7 bg-[#1C1C1E] border border-slate-800/90 rounded-3xl p-6 sm:p-8 space-y-6 shadow-2xl">
             
             <div className="space-y-3">
@@ -566,75 +554,7 @@ export default function DonatePage() {
 
       </main>
 
-      {/* QR CODE & UPI POPUP MODAL (TRIGGERS UPON CLICKING PAY) */}
-      {showQrModal && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4 font-sans">
-          <div className="bg-[#1C1C1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-6 shadow-2xl relative text-center">
-            
-            <button 
-              onClick={() => setShowQrModal(false)}
-              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="space-y-2">
-              <h2 className="text-lg font-black text-white">Scan & Pay ₹{selectedAmount}</h2>
-              <p className="text-xs text-slate-400">
-                Scan QR or copy UPI ID to support <strong className="text-white">{studentName}</strong>.
-              </p>
-            </div>
-
-            {/* QR Code Display Box */}
-            {campaign.qrCodeUrl ? (
-              <div className="bg-white p-3 rounded-2xl mx-auto w-48 h-48 flex items-center justify-center shadow-lg border border-slate-700">
-                <img src={campaign.qrCodeUrl} alt="Student Payment QR" className="w-full h-full object-contain rounded" />
-              </div>
-            ) : (
-              <div className="bg-[#121214] p-6 rounded-2xl border border-slate-800 text-slate-400 text-xs">
-                No QR image uploaded by student. Please use UPI ID below.
-              </div>
-            )}
-
-            {/* UPI ID Copy Box */}
-            <div className="bg-[#121214] p-3.5 rounded-2xl border border-slate-800 space-y-1 text-left">
-              <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider block">UPI VPA ID</span>
-              <div className="flex items-center justify-between gap-2">
-                <span className="font-mono font-bold text-emerald-400 text-xs truncate">
-                  {campaign.upiId || 'Not Provided'}
-                </span>
-                <button
-                  type="button"
-                  onClick={handleCopyUpi}
-                  className="px-3 py-1 bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] rounded-lg transition flex items-center gap-1 shrink-0"
-                >
-                  <Copy className="w-3 h-3" /> {copied ? 'Copied!' : 'Copy'}
-                </button>
-              </div>
-            </div>
-
-            <div className="pt-1 flex gap-2">
-              <button
-                type="button"
-                onClick={() => setShowQrModal(false)}
-                className="w-1/2 py-2.5 bg-[#121214] hover:bg-slate-800 text-slate-400 font-bold text-xs rounded-xl border border-slate-800 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={handleProceedToUtr}
-                className="w-1/2 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-xl transition shadow-md shadow-blue-600/20"
-              >
-                I Have Paid →
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      <Footer />
+      {/* <Footer /> */}
     </div>
   );
 }
