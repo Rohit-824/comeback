@@ -50,16 +50,6 @@ interface UserPost {
   commentsCount: number;
   mediaType?: 'image' | 'video';
   mediaUrl?: string;
-  bankDetails?: {
-    upiId: string;
-    accountNumber: string;
-    ifscCode: string;
-  };
-  documents?: {
-    collegeIdUrl?: string;
-    marksheetUrl?: string;
-    feeChallanUrl?: string;
-  };
 }
 
 interface UserDonation {
@@ -118,7 +108,7 @@ export default function ProfilePage() {
 
   const [selectedReceipt, setSelectedReceipt] = useState<UserDonation | null>(null);
 
-  // LOAD REAL USER DATA FROM LOCALSTORAGE & SUPABASE
+  // LOAD REAL USER DATA EXCLUSIVELY FROM SUPABASE
   useEffect(() => {
     async function fetchProfileData() {
       // 1. Fetch Posts from Supabase Database
@@ -133,33 +123,29 @@ export default function ProfilePage() {
           title: p.title,
           story: p.story,
           category: p.category,
-          discussionTag: p.discussionTag || p.discussion_tag || 'general',
+          discussionTag: p.subject_code || p.discussion_tag || p.discussionTag || 'general',
           datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
-          studentName: p.student_name || p.studentName,
-          studentEmail: p.student_email || p.studentEmail,
+          studentName: p.student_name || 'Student',
+          studentEmail: p.student_email || '',
           college: p.college || 'DTU',
-          subjectCode: p.subject_code || p.subjectCode,
-          subjectGrade: p.subject_grade || p.subjectGrade,
+          subjectCode: p.subject_code,
+          subjectGrade: p.subject_grade,
           goal: p.goal || 0,
           raised: p.raised || 0,
           status: p.status || 'active',
-          commentsCount: p.commentsCount || 0,
-          mediaType: p.media_type || p.mediaType,
-          mediaUrl: p.media_url || p.mediaUrl,
+          commentsCount: 0,
+          mediaType: p.media_type,
+          mediaUrl: p.media_url,
         }));
         setUserPosts(mappedPosts);
+        
+        // Saved posts from Supabase data mapped to saved IDs map
+        const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
+        const uniqueSaved = mappedPosts.filter(p => savedIds[p.id]);
+        setSavedPostsList(uniqueSaved);
       }
 
-      // 2. Saved Posts
-      const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
-      const feedPosts = JSON.parse(localStorage.getItem('feed_posts') || '[]');
-      const combinedAll = [...(postsData || []), ...feedPosts];
-      const uniqueSaved = combinedAll.filter(
-        (p, index, self) => savedIds[p.id] && self.findIndex(t => t.id === p.id) === index
-      );
-      setSavedPostsList(uniqueSaved);
-
-      // 3. Real Donations History
+      // 2. Real Donations History
       const userDonations = localStorage.getItem('user_donations');
       if (userDonations) {
         try {
@@ -170,7 +156,7 @@ export default function ProfilePage() {
         }
       }
 
-      // 4. Real User Activities
+      // 3. Real User Activities
       const userActivities = localStorage.getItem('user_activities');
       if (userActivities) {
         try {
@@ -263,27 +249,16 @@ export default function ProfilePage() {
       }
     }
 
-    let collegeIdUrl: string | undefined = undefined;
-    let marksheetUrl: string | undefined = undefined;
-    let feeChallanUrl: string | undefined = undefined;
-
-    if (isFunding) {
-      if (collegeIdFile) collegeIdUrl = await convertFileToBase64(collegeIdFile);
-      if (resultFile) marksheetUrl = await convertFileToBase64(resultFile);
-      if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
-    }
-
-    // Insert directly into Supabase database table 'posts' including discussionTag
+    // Insert directly into Supabase table without using any unmapped custom columns that trigger schema errors
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
-        discussion_tag: !isFunding ? newDiscussionTag : 'Fee Appeal', // <--- Use underscore
+        subject_code: isFunding ? newSubjectCode : newDiscussionTag, // Stores category tag safely in subject_code column
         student_name: currentUser?.full_name || 'Rohit Dalal',
         student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
         college: currentUser?.college || 'DTU',
-        subject_code: isFunding ? newSubjectCode : null,
         subject_grade: isFunding ? newSubjectGrade : null,
         goal: isFunding ? newGoal : 0,
         raised: 0,
@@ -292,6 +267,7 @@ export default function ProfilePage() {
         media_url: mediaUrl || null,
       }
     ]).select();
+
     if (error) {
       console.error('Error creating post in Supabase:', error);
       alert(`Failed to publish: ${error.message}`);
@@ -304,7 +280,7 @@ export default function ProfilePage() {
         title: data[0].title,
         story: data[0].story,
         category: data[0].category,
-        discussionTag: data[0].discussionTag || data[0].discussion_tag || 'general',
+        discussionTag: data[0].subject_code || newDiscussionTag,
         datePosted: 'Just now',
         studentName: data[0].student_name,
         college: data[0].college,
