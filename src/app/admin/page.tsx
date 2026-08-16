@@ -101,7 +101,6 @@ export default function AdminDashboardPage() {
   const [flaggedCommentReports, setFlaggedCommentReports] = useState<FlaggedCommentReport[]>([]);
   const [transactions, setTransactions] = useState<TransactionRecord[]>([]);
 
-  // DYNAMIC ANALYTICS COMPUTED STATE
   const [analyticsData, setAnalyticsData] = useState({
     totalPosts: 0,
     totalStudents: 1,
@@ -118,7 +117,7 @@ export default function AdminDashboardPage() {
     ]
   });
 
-  // FETCH REAL DATA DIRECTLY FROM SUPABASE DATABASE & LOCALSTORAGE FALLBACK
+  // FETCH REAL DATA WITH DUAL-SYNC (SUPABASE + LOCALSTORAGE FALLBACK)
   useEffect(() => {
     const loadAdminData = async () => {
       let combinedPosts: AdminPost[] = [];
@@ -129,7 +128,7 @@ export default function AdminDashboardPage() {
         .select('*')
         .order('created_at', { ascending: false });
 
-      if (!postsError && postsData && postsData.length > 0) {
+      if (!postsError && postsData) {
         combinedPosts = postsData.map((p: any) => ({
           id: p.id,
           title: p.title,
@@ -146,10 +145,15 @@ export default function AdminDashboardPage() {
           datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
           mediaType: p.media_type,
           mediaUrl: p.media_url,
+          documents: {
+            collegeIdUrl: p.college_id_url,
+            marksheetUrl: p.marksheet_url,
+            feeChallanUrl: p.fee_challan_url
+          }
         }));
       }
 
-      // 2. Fallback / Merge with LocalStorage posts if any exist locally
+      // 2. Fallback / Merge with LocalStorage posts
       const savedUser = localStorage.getItem('user_posts');
       if (savedUser) {
         try {
@@ -195,7 +199,7 @@ export default function AdminDashboardPage() {
         }
       }
 
-      // 4. Fetch Real Global Transactions Log
+      // 4. Transactions Log
       let loadedTransactions: TransactionRecord[] = [];
       const globalTx = localStorage.getItem('global_transactions');
       if (globalTx) {
@@ -228,7 +232,7 @@ export default function AdminDashboardPage() {
       }
       setTransactions(loadedTransactions);
 
-      // 5. Analytics Setup
+      // 5. Analytics
       let registeredUserCount = 1;
       try {
         const { count, error } = await supabase
@@ -338,6 +342,7 @@ export default function AdminDashboardPage() {
   const handleApprove = async (post: AdminPost) => {
     const updatedPosts = allPosts.map(p => p.id === post.id ? { ...p, status: 'active' as const } : p);
     setAllPosts(updatedPosts);
+    localStorage.setItem('user_posts', JSON.stringify(updatedPosts));
 
     await supabase
       .from('posts')
@@ -373,6 +378,7 @@ export default function AdminDashboardPage() {
         : p
     );
     setAllPosts(updatedPosts);
+    localStorage.setItem('user_posts', JSON.stringify(updatedPosts));
 
     await supabase
       .from('posts')
@@ -402,12 +408,10 @@ export default function AdminDashboardPage() {
 
   const handleDeletePost = async (postId: string) => {
     if (confirm('ADMIN ACTION: Delete post permanently?')) {
-      const { error } = await supabase.from('posts').delete().eq('id', postId);
-      if (error) {
-        alert('Failed to delete post from Supabase.');
-        return;
-      }
-      setAllPosts(allPosts.filter(p => p.id !== postId));
+      await supabase.from('posts').delete().eq('id', postId);
+      const updatedPosts = allPosts.filter(p => p.id !== postId);
+      setAllPosts(updatedPosts);
+      localStorage.setItem('user_posts', JSON.stringify(updatedPosts));
     }
   };
 
@@ -1076,7 +1080,6 @@ export default function AdminDashboardPage() {
         </div>
       )}
 
-      {/* <Footer /> */}
     </div>
   );
 }
