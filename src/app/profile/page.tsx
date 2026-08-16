@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { 
   FileText, 
   Heart, 
@@ -117,50 +118,72 @@ export default function ProfilePage() {
 
   const [selectedReceipt, setSelectedReceipt] = useState<UserDonation | null>(null);
 
-  // LOAD REAL USER DATA FROM LOCALSTORAGE
+  // LOAD REAL USER DATA FROM LOCALSTORAGE & SUPABASE
   useEffect(() => {
-    // 1. My Posts
-    const saved = localStorage.getItem('user_posts');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setUserPosts(parsed);
-      } catch (err) {
-        console.error(err);
+    async function fetchProfileData() {
+      // 1. Fetch Posts from Supabase Database
+      const { data: postsData, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (!error && postsData) {
+        // Map database fields to UserPost interface format if needed
+        const mappedPosts = postsData.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          story: p.story,
+          category: p.category,
+          discussionTag: p.discussionTag || p.discussion_tag,
+          datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
+          studentName: p.student_name || p.studentName,
+          studentEmail: p.student_email || p.studentEmail,
+          college: p.college || 'DTU',
+          subjectCode: p.subject_code || p.subjectCode,
+          subjectGrade: p.subject_grade || p.subjectGrade,
+          goal: p.goal || 0,
+          raised: p.raised || 0,
+          status: p.status || 'active',
+          commentsCount: p.commentsCount || 0,
+          mediaType: p.media_type || p.mediaType,
+          mediaUrl: p.media_url || p.mediaUrl,
+        }));
+        setUserPosts(mappedPosts);
+      }
+
+      // 2. Saved Posts
+      const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
+      const feedPosts = JSON.parse(localStorage.getItem('feed_posts') || '[]');
+      const combinedAll = [...(postsData || []), ...feedPosts];
+      const uniqueSaved = combinedAll.filter(
+        (p, index, self) => savedIds[p.id] && self.findIndex(t => t.id === p.id) === index
+      );
+      setSavedPostsList(uniqueSaved);
+
+      // 3. Real Donations History
+      const userDonations = localStorage.getItem('user_donations');
+      if (userDonations) {
+        try {
+          const parsedDonations = JSON.parse(userDonations);
+          if (Array.isArray(parsedDonations)) setDonationsList(parsedDonations);
+        } catch (err) {
+          console.error(err);
+        }
+      }
+
+      // 4. Real User Activities
+      const userActivities = localStorage.getItem('user_activities');
+      if (userActivities) {
+        try {
+          const parsedActivities = JSON.parse(userActivities);
+          if (Array.isArray(parsedActivities)) setActivitiesList(parsedActivities);
+        } catch (err) {
+          console.error(err);
+        }
       }
     }
 
-    // 2. Saved Posts
-    const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
-    const feedPosts = JSON.parse(localStorage.getItem('feed_posts') || '[]');
-    const userPostsAll = JSON.parse(localStorage.getItem('user_posts') || '[]');
-    const combinedAll = [...userPostsAll, ...feedPosts];
-    const uniqueSaved = combinedAll.filter(
-      (p, index, self) => savedIds[p.id] && self.findIndex(t => t.id === p.id) === index
-    );
-    setSavedPostsList(uniqueSaved);
-
-    // 3. Real Donations History (Matching User Request Photo)
-    const userDonations = localStorage.getItem('user_donations');
-    if (userDonations) {
-      try {
-        const parsedDonations = JSON.parse(userDonations);
-        if (Array.isArray(parsedDonations)) setDonationsList(parsedDonations);
-      } catch (err) {
-        console.error(err);
-      }
-    }
-
-    // 4. Real User Activities
-    const userActivities = localStorage.getItem('user_activities');
-    if (userActivities) {
-      try {
-        const parsedActivities = JSON.parse(userActivities);
-        if (Array.isArray(parsedActivities)) setActivitiesList(parsedActivities);
-      } catch (err) {
-        console.error(err);
-      }
-    }
+    fetchProfileData();
   }, []);
 
   // Form State
@@ -195,22 +218,15 @@ export default function ProfilePage() {
     router.push('/login');
   };
 
-  const handleDeletePost = (postId: string) => {
+  const handleDeletePost = async (postId: string) => {
     if (confirm('Are you sure you want to delete this post?')) {
-      const updatedUserPosts = userPosts.filter(p => p.id !== postId);
-      setUserPosts(updatedUserPosts);
-      localStorage.setItem('user_posts', JSON.stringify(updatedUserPosts));
-
-      const savedFeed = localStorage.getItem('feed_posts');
-      if (savedFeed) {
-        try {
-          const feedArray = JSON.parse(savedFeed);
-          const updatedFeed = feedArray.filter((p: any) => p.id !== postId);
-          localStorage.setItem('feed_posts', JSON.stringify(updatedFeed));
-        } catch (e) {
-          console.error(e);
-        }
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) {
+        console.error('Error deleting post:', error.message);
+        alert('Failed to delete post.');
+        return;
       }
+      setUserPosts(userPosts.filter(p => p.id !== postId));
     }
   };
 
@@ -235,7 +251,6 @@ export default function ProfilePage() {
     if (!newTitle.trim()) return;
 
     const isFunding = newCategory === 'funding';
-    const newId = `post-${Date.now()}`;
 
     let mediaUrl: string | undefined = undefined;
     let mediaType: 'image' | 'video' | undefined = undefined;
@@ -259,59 +274,49 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    const createdPost: UserPost = {
-      id: newId,
-      title: newTitle,
-      story: newStory,
-      category: newCategory,
-      discussionTag: !isFunding ? newDiscussionTag : 'Fee Appeal',
-      datePosted: 'Just now',
-      studentName: currentUser?.full_name || 'Rohit Dalal',
-      studentEmail: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
-      college: currentUser?.college || 'DTU',
-      subjectCode: isFunding ? newSubjectCode : undefined,
-      subjectGrade: isFunding ? newSubjectGrade : undefined,
-      goal: isFunding ? newGoal : undefined,
-      raised: isFunding ? 0 : undefined,
-      status: isFunding ? 'pending_verification' : 'active',
-      commentsCount: 0,
-      mediaType,
-      mediaUrl,
-      bankDetails: isFunding ? {
-        upiId,
-        accountNumber,
-        ifscCode
-      } : undefined,
-      documents: isFunding ? {
-        collegeIdUrl,
-        marksheetUrl,
-        feeChallanUrl
-      } : undefined
-    };
+    // Insert directly into Supabase database table 'posts'
+    const { data, error } = await supabase.from('posts').insert([
+      {
+        title: newTitle,
+        story: newStory,
+        category: isFunding ? 'funding' : 'discussion',
+        discussionTag: !isFunding ? newDiscussionTag : 'Fee Appeal',
+        student_name: currentUser?.full_name || 'Rohit Dalal',
+        student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
+        college: currentUser?.college || 'DTU',
+        subject_code: isFunding ? newSubjectCode : null,
+        subject_grade: isFunding ? newSubjectGrade : null,
+        goal: isFunding ? newGoal : 0,
+        raised: 0,
+        status: isFunding ? 'pending_verification' : 'active',
+        media_type: mediaType || null,
+        media_url: mediaUrl || null,
+      }
+    ]).select();
 
-    const updatedUserPosts = [createdPost, ...userPosts];
-    setUserPosts(updatedUserPosts);
-    localStorage.setItem('user_posts', JSON.stringify(updatedUserPosts));
-
-    if (!isFunding) {
-      const savedFeed = localStorage.getItem('feed_posts');
-      let feedArray = savedFeed ? JSON.parse(savedFeed) : [];
-      feedArray = [createdPost, ...feedArray];
-      localStorage.setItem('feed_posts', JSON.stringify(feedArray));
+    if (error) {
+      console.error('Error creating post in Supabase:', error.message);
+      alert('Failed to publish post to database.');
+      return;
     }
 
-    // Add Create Post Event to User Activities
-    const activityItem: ActivityItem = {
-      id: `act-${Date.now()}`,
-      type: 'post',
-      postTitle: newTitle,
-      postId: newId,
-      timeAgo: 'Just now',
-      content: `Published new ${isFunding ? 'Fee Appeal' : 'Campus Discussion'} post.`
-    };
-    const updatedActivities = [activityItem, ...activitiesList];
-    setActivitiesList(updatedActivities);
-    localStorage.setItem('user_activities', JSON.stringify(updatedActivities));
+    if (data && data[0]) {
+      const newCreatedPost: UserPost = {
+        id: data[0].id,
+        title: data[0].title,
+        story: data[0].story,
+        category: data[0].category,
+        discussionTag: data[0].discussionTag || data[0].discussion_tag,
+        datePosted: 'Just now',
+        studentName: data[0].student_name,
+        college: data[0].college,
+        status: data[0].status,
+        commentsCount: 0,
+        mediaType: data[0].media_type,
+        mediaUrl: data[0].media_url,
+      };
+      setUserPosts([newCreatedPost, ...userPosts]);
+    }
 
     setShowCreateModal(false);
 
@@ -328,8 +333,9 @@ export default function ProfilePage() {
     setFeeChallanFile(null);
 
     if (isFunding) {
-      alert('Fee appeal submitted! Sent to Admin Portal for document review.');
+      alert('Fee appeal submitted to Supabase! Sent to Admin Portal for review.');
     } else {
+      alert('Post published successfully to cloud database!');
       router.push('/feed');
     }
   };
@@ -635,7 +641,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* TAB 3: DONATIONS MADE (MATCHING USER SCREENSHOT EXACTLY) */}
+        {/* TAB 3: DONATIONS MADE */}
         {activeTab === 'donations' && (
           <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-2xl">
             <div className="space-y-1">
@@ -690,7 +696,7 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* TAB 4: RECENT ACTIVITY (REAL USER ACTIVITY LOG) */}
+        {/* TAB 4: RECENT ACTIVITY */}
         {activeTab === 'activity' && (
           <div className="bg-[#1E1E1E] rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-2xl">
             <h3 className="text-lg font-bold text-white flex items-center gap-2">
