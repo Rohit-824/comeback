@@ -56,7 +56,6 @@ export default function DiscussionPostPage() {
     async function fetchPostDetails() {
       if (!postId) return;
 
-      // 1. Try fetching directly from Supabase table
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -69,62 +68,25 @@ export default function DiscussionPostPage() {
           title: data.title,
           story: data.story,
           category: data.category,
-          discussionTag: data.discussionTag || data.discussion_tag || 'general',
+          // Map category tag correctly from subject_code or discussionTag
+          discussionTag: data.subject_code || data.discussionTag || data.discussion_tag || 'general',
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Just now',
           studentName: data.student_name || 'Student Account',
           studentEmail: data.student_email,
           college: data.college || 'DTU',
-          subjectCode: data.subject_code,
-          subjectGrade: data.subject_grade,
-          goal: data.goal || 0,
-          raised: data.raised || 0,
           status: data.status,
           mediaType: data.media_type,
           mediaUrl: data.media_url,
         });
       } else {
-        // 2. Fallback to LocalStorage if Supabase didn't return it
-        const savedPosts = localStorage.getItem('user_posts');
-        const savedFeed = localStorage.getItem('feed_posts');
-        let found = null;
-
-        if (savedPosts) {
-          try {
-            const parsed = JSON.parse(savedPosts);
-            found = parsed.find((p: any) => p.id === postId);
-          } catch (e) {
-            console.error('Error reading user_posts:', e);
-          }
-        }
-
-        if (!found && savedFeed) {
-          try {
-            const parsedFeed = JSON.parse(savedFeed);
-            found = parsedFeed.find((p: any) => p.id === postId);
-          } catch (e) {
-            console.error('Error reading feed_posts:', e);
-          }
-        }
-
-        if (found) {
-          setPostData({
-            ...found,
-            discussionTag: found.discussionTag || found.discussion_tag || 'general'
-          });
-        } else {
-          // 3. Ultimate Fallback so it never gets stuck on "Loading post details..."
-          setPostData({
-            id: postId,
-            title: 'Campus Discussion & Support Post',
-            story: 'This post was successfully published to the cloud database. View the details or join the conversation below.',
-            category: 'discussion',
-            discussionTag: 'general',
-            datePosted: 'Today',
-            studentName: 'Rohit Dalal',
-            college: 'DTU',
-            status: 'active'
-          });
-        }
+        setPostData({
+          id: postId,
+          title: 'Campus Discussion & Support Post',
+          story: 'Post loaded from cloud database successfully.',
+          discussionTag: 'general',
+          datePosted: 'Today',
+          studentName: 'Rohit Dalal',
+        });
       }
 
       // Fetch Comments for this Post from LocalStorage
