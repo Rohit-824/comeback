@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
+import { supabase } from '@/lib/supabase'; // Make sure this matches your lib file path
 import { 
   MessageSquare, 
   Share2, 
@@ -35,6 +36,8 @@ interface FeedPost {
   mediaType?: 'image' | 'video';
   mediaUrl?: string;
   status?: string;
+  created_at?: string;
+  student_name?: string;
 }
 
 function FeedContent() {
@@ -67,43 +70,24 @@ function FeedContent() {
   }, [searchParams]);
 
   useEffect(() => {
-    const loadAllPosts = () => {
-      let combined: FeedPost[] = [];
+    async function loadSupabasePosts() {
+      // Fetch posts directly from Supabase database so they sync across laptop & phone
+      const { data, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      // Load purely from local storage user posts and feed posts (no dummy/sample posts)
-      const savedFeed = localStorage.getItem('feed_posts');
-      if (savedFeed) {
-        try {
-          const parsed = JSON.parse(savedFeed);
-          if (Array.isArray(parsed)) combined = [...parsed];
-        } catch (err) {
-          console.error(err);
-        }
+      if (error) {
+        console.error('Error fetching posts from Supabase:', error.message);
+      } else {
+        setFeedPosts(data || []);
       }
-
-      const savedUser = localStorage.getItem('user_posts');
-      if (savedUser) {
-        try {
-          const parsedUser = JSON.parse(savedUser);
-          if (Array.isArray(parsedUser)) {
-            parsedUser.forEach((uPost: FeedPost) => {
-              if (uPost.status === 'active' && !combined.some((p) => p.id === uPost.id)) {
-                combined.unshift(uPost);
-              }
-            });
-          }
-        } catch (err) {
-          console.error(err);
-        }
-      }
-
-      setFeedPosts(combined);
 
       const map = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
       setSavedPostsMap(map);
-    };
+    }
 
-    loadAllPosts();
+    loadSupabasePosts();
   }, []);
 
   const handleCreateNewClick = () => {
@@ -217,7 +201,8 @@ function FeedContent() {
         ) : (
           filteredPosts.map((post) => {
             const postRoute = `/post/${post.id}`;
-            const initials = getAuthorInitials(post.studentName);
+            const authorName = post.student_name || post.studentName || 'Student Account';
+            const initials = getAuthorInitials(authorName);
 
             const goalAmount = post.goal || 2000;
             const raisedAmount = post.raised || 0;
@@ -236,7 +221,7 @@ function FeedContent() {
                       {initials}
                     </span>
                     <span className="font-extrabold text-white text-base sm:text-lg">
-                      {post.studentName || 'Student Account'}
+                      {authorName}
                     </span>
 
                     {post.category === 'funding' ? (
@@ -259,7 +244,7 @@ function FeedContent() {
                   </div>
 
                   <span className="text-slate-400 text-xs font-medium">
-                    {post.datePosted || 'Just now'}
+                    {post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Just now'}
                   </span>
                 </div>
 

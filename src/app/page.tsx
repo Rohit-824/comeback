@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
+import { supabase } from '@/lib/supabase'; // Make sure this matches your supabase client path
 import { 
   Heart, 
   MessageSquare, 
@@ -14,11 +15,8 @@ import {
   Flame, 
   HelpCircle, 
   GraduationCap, 
-  Share2, 
   ExternalLink, 
-  Users, 
-  Trophy, 
-  Bookmark 
+  Users 
 } from 'lucide-react';
 
 export default function ComeBackHomePage() {
@@ -36,32 +34,38 @@ export default function ComeBackHomePage() {
   });
 
   useEffect(() => {
-    // 1. Fetch real transactions & user posts from localStorage
-    const transactions = JSON.parse(localStorage.getItem('global_transactions') || '[]');
-    const userPosts = JSON.parse(localStorage.getItem('user_posts') || '[]');
-    const feedPosts = JSON.parse(localStorage.getItem('feed_posts') || '[]');
+    async function fetchHomeData() {
+      // Fetch posts directly from Supabase database
+      const { data: postsData, error } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-    const allPosts = [...userPosts, ...feedPosts];
-    // Remove duplicates based on ID
-    const uniquePosts = allPosts.filter((p, index, self) => self.findIndex(t => t.id === p.id) === index);
-    
-    // Take the top 3 most recent posts for the home page
-    setDynamicPosts(uniquePosts.slice(0, 3));
+      if (error) {
+        console.error('Error fetching posts from Supabase:', error.message);
+        return;
+      }
 
-    const activeAppealsCount = uniquePosts.filter((p: any) => p.category === 'funding').length;
+      const allPosts = postsData || [];
+      setDynamicPosts(allPosts.slice(0, 3)); // Take top 3 recent posts
 
-    // 2. Real calculated data
-    const totalRaisedFromTx = transactions.reduce((acc: number, curr: any) => acc + (curr.amount || 0), 0);
-    const uniqueDonorsCount = new Set(transactions.map((tx: any) => tx.donorEmail || tx.donorName)).size;
+      const activeAppealsCount = allPosts.filter((p: any) => p.category === 'funding').length;
 
-    setStats({
-      studentsBacked: activeAppealsCount + transactions.length,
-      feesRaised: totalRaisedFromTx,
-      passSuccess: '96.4%',
-      donorsJoined: uniqueDonorsCount || 1,
-      topCampuses: 4,
-      verifiedSlips: '100%'
-    });
+      // Calculate totals from database posts
+      const totalRaisedFromPosts = allPosts.reduce((acc: number, curr: any) => acc + (curr.raised || 0), 0);
+      const uniqueDonorsCount = new Set(allPosts.map((p: any) => p.student_email)).size;
+
+      setStats({
+        studentsBacked: activeAppealsCount || allPosts.length,
+        feesRaised: totalRaisedFromPosts,
+        passSuccess: '96.4%',
+        donorsJoined: uniqueDonorsCount || 1,
+        topCampuses: 4,
+        verifiedSlips: '100%'
+      });
+    }
+
+    fetchHomeData();
   }, []);
 
   const formatFees = (amount: number) => {
@@ -222,7 +226,7 @@ export default function ComeBackHomePage() {
           </div>
         </section>
 
-        {/* SECTION 4: LIVE APPEALS & DISCUSSIONS (TOP 3 DYNAMIC POSTS) */}
+        {/* SECTION 4: LIVE APPEALS & DISCUSSIONS */}
         <section id="posts" className="py-20 px-6 border-b border-slate-800/50 max-w-4xl mx-auto space-y-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
@@ -266,14 +270,15 @@ export default function ComeBackHomePage() {
                 const goal = post.goal || 2000;
                 const raised = post.raised || 0;
                 const percentage = Math.min(100, Math.round((raised / goal) * 100));
-                const authorInitials = (post.studentName || post.author || 'User').substring(0, 2).toUpperCase();
+                const authorName = post.student_name || post.studentName || 'Anonymous Student';
+                const authorInitials = authorName.substring(0, 2).toUpperCase();
 
                 return (
                   <div key={post.id} className={`bg-[#1E1E1E] rounded-2xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-lg ${isFunding ? 'border-l-4 border-l-amber-500' : ''}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
                       <div className="flex items-center gap-2">
                         <span className="w-8 h-8 bg-blue-600/30 text-blue-400 font-bold rounded-lg flex items-center justify-center">{authorInitials}</span>
-                        <span className="font-bold text-white text-base">{post.studentName || post.author || 'Anonymous Student'}</span>
+                        <span className="font-bold text-white text-base">{authorName}</span>
                         <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Verified
                         </span>
@@ -281,7 +286,9 @@ export default function ComeBackHomePage() {
                           {post.college || 'DTU'}
                         </span>
                       </div>
-                      <span className="text-slate-400 text-xs">{post.datePosted || 'Recently'}</span>
+                      <span className="text-slate-400 text-xs">
+                        {post.created_at ? new Date(post.created_at).toLocaleDateString() : 'Recently'}
+                      </span>
                     </div>
 
                     <h3 className="text-lg font-bold text-white">
@@ -343,7 +350,6 @@ export default function ComeBackHomePage() {
             )}
           </div>
 
-          {/* REDIRECT LOAD MORE BUTTON */}
           <div className="text-center pt-6">
             <Link 
               href="/feed" 
