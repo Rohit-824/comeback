@@ -82,7 +82,10 @@ function FeedContent() {
       } else {
         const mapped = (data || []).map((p: any) => ({
           ...p,
-          discussionTag: p.subject_code || p.discussionTag || p.discussion_tag || 'general',
+          discussionTag: p.subject_code || p.discussion_tag || p.discussionTag || 'general',
+          mediaUrl: p.media_url || p.mediaUrl,
+          mediaType: p.media_type || p.mediaType,
+          studentName: p.student_name || p.studentName,
         }));
         setFeedPosts(mapped);
       }
@@ -211,6 +214,7 @@ function FeedContent() {
             const goalAmount = post.goal || 2000;
             const raisedAmount = post.raised || 0;
             const percentage = Math.min(100, Math.round((raisedAmount / goalAmount) * 100));
+            const displayTag = post.discussionTag || (post as any).subject_code;
 
             return (
               <div 
@@ -233,9 +237,9 @@ function FeedContent() {
                         <Trophy className="w-3.5 h-3.5 text-emerald-400" /> Fee Appeal
                       </span>
                     ) : (
-                      (post.discussionTag || (post as any).subject_code) && (
+                      displayTag && (
                         <span className="bg-purple-950/80 text-purple-300 border border-purple-800/80 px-2.5 py-0.5 rounded-full font-bold text-xs capitalize">
-                          {post.discussionTag || (post as any).subject_code}
+                          {displayTag}
                         </span>
                       )
                     )}
