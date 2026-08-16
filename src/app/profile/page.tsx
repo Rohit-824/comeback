@@ -50,6 +50,11 @@ interface UserPost {
   commentsCount: number;
   mediaType?: 'image' | 'video';
   mediaUrl?: string;
+  bankDetails?: {
+    upiId: string;
+    accountNumber: string;
+    ifscCode: string;
+  };
 }
 
 interface UserDonation {
@@ -136,10 +141,14 @@ export default function ProfilePage() {
           commentsCount: 0,
           mediaType: p.media_type,
           mediaUrl: p.media_url,
+          bankDetails: {
+            upiId: p.upi_id || 'student@okicici',
+            accountNumber: p.account_number || '••••••••8819',
+            ifscCode: p.ifsc_code || 'SBIN0001234'
+          }
         }));
         setUserPosts(mappedPosts);
         
-        // Saved posts mapped to saved IDs map
         const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
         const uniqueSaved = mappedPosts.filter(p => savedIds[p.id]);
         setSavedPostsList(uniqueSaved);
@@ -259,7 +268,7 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert directly into Supabase table including document proofs
+    // Insert into Supabase table including custom bank details & document proofs
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -275,6 +284,9 @@ export default function ProfilePage() {
         status: isFunding ? 'pending_verification' : 'active',
         media_type: mediaType || null,
         media_url: mediaUrl || null,
+        upi_id: isFunding ? upiId : null,
+        account_number: isFunding ? accountNumber : null,
+        ifsc_code: isFunding ? ifscCode : null,
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,
@@ -301,6 +313,11 @@ export default function ProfilePage() {
         commentsCount: 0,
         mediaType: data[0].media_type,
         mediaUrl: data[0].media_url,
+        bankDetails: {
+          upiId: data[0].upi_id,
+          accountNumber: data[0].account_number,
+          ifscCode: data[0].ifsc_code,
+        }
       };
       setUserPosts([newCreatedPost, ...userPosts]);
     }
