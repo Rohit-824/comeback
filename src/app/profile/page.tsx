@@ -273,13 +273,12 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert directly into Supabase database table 'posts'
+    // Insert directly into Supabase database table 'posts' without unmapped custom tags
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
-        discussion_tag: !isFunding ? newDiscussionTag : 'Fee Appeal',
         student_name: currentUser?.full_name || 'Rohit Dalal',
         student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
         college: currentUser?.college || 'DTU',
@@ -1082,7 +1081,7 @@ export default function ProfilePage() {
                     <div className="bg-[#181818] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
                       <span className="text-slate-400">3. Fee Notice / Challan:</span>
                       <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded cursor-pointer transition">
-                        {feeChallanFile ? feeChallanFile.name : 'Choose Data'}
+                        {feeChallanFile ? feeChallanFile.name : 'Choose File'}
                         <input type="file" required accept="image/*,.pdf" onChange={(e) => setFeeChallanFile(e.target.files?.[0] || null)} className="hidden" />
                       </label>
                     </div>
