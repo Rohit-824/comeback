@@ -69,6 +69,7 @@ export default function DiscussionPostPage() {
           title: data.title,
           story: data.story,
           category: data.category,
+          discussionTag: data.discussionTag || data.discussion_tag || 'general',
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Just now',
           studentName: data.student_name || 'Student Account',
           studentEmail: data.student_email,
@@ -106,7 +107,10 @@ export default function DiscussionPostPage() {
         }
 
         if (found) {
-          setPostData(found);
+          setPostData({
+            ...found,
+            discussionTag: found.discussionTag || found.discussion_tag || 'general'
+          });
         } else {
           // 3. Ultimate Fallback so it never gets stuck on "Loading post details..."
           setPostData({
@@ -114,6 +118,7 @@ export default function DiscussionPostPage() {
             title: 'Campus Discussion & Support Post',
             story: 'This post was successfully published to the cloud database. View the details or join the conversation below.',
             category: 'discussion',
+            discussionTag: 'general',
             datePosted: 'Today',
             studentName: 'Rohit Dalal',
             college: 'DTU',
@@ -413,6 +418,11 @@ export default function DiscussionPostPage() {
                 <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
                   <CheckCircle2 className="w-3.5 h-3.5" /> Verified Live Post
                 </span>
+                {postData.discussionTag && (
+                  <span className="bg-purple-950 text-purple-300 border border-purple-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1 capitalize">
+                    <Tag className="w-3 h-3" /> {postData.discussionTag}
+                  </span>
+                )}
               </div>
               <span className="text-slate-400">{postData.datePosted || 'Just now'}</span>
             </div>

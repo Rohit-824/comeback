@@ -133,7 +133,7 @@ export default function ProfilePage() {
           title: p.title,
           story: p.story,
           category: p.category,
-          discussionTag: p.discussionTag || p.discussion_tag,
+          discussionTag: p.discussionTag || p.discussion_tag || 'general',
           datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
           studentName: p.student_name || p.studentName,
           studentEmail: p.student_email || p.studentEmail,
@@ -273,12 +273,13 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert directly into Supabase database table 'posts' without unmapped custom tags
+    // Insert directly into Supabase database table 'posts' including discussionTag
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
         story: newStory,
         category: isFunding ? 'funding' : 'discussion',
+        discussionTag: !isFunding ? newDiscussionTag : 'Fee Appeal',
         student_name: currentUser?.full_name || 'Rohit Dalal',
         student_email: currentUser?.email || user?.email || 'rohit@dtu.ac.in',
         college: currentUser?.college || 'DTU',
@@ -304,7 +305,7 @@ export default function ProfilePage() {
         title: data[0].title,
         story: data[0].story,
         category: data[0].category,
-        discussionTag: data[0].discussionTag || data[0].discussion_tag,
+        discussionTag: data[0].discussionTag || data[0].discussion_tag || 'general',
         datePosted: 'Just now',
         studentName: data[0].student_name,
         college: data[0].college,
@@ -508,24 +509,6 @@ export default function ProfilePage() {
                           {post.category === 'funding' ? 'Fee Appeal' : 'Discussion'}
                         </span>
 
-                        {post.status === 'pending_verification' && (
-                          <span className="bg-amber-950/80 text-amber-400 border border-amber-800 px-2.5 py-0.5 rounded text-[11px] font-bold flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" /> Under Admin Review
-                          </span>
-                        )}
-
-                        {post.status === 'active' && (
-                          <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded text-[11px] font-bold flex items-center gap-1">
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Live & Verified
-                          </span>
-                        )}
-
-                        {post.status === 'rejected' && (
-                          <span className="bg-rose-950 text-rose-400 border border-rose-800 px-2.5 py-0.5 rounded text-[11px] font-bold flex items-center gap-1">
-                            <AlertCircle className="w-3.5 h-3.5" /> Appeal Rejected
-                          </span>
-                        )}
-
                         {post.discussionTag && (
                           <span className="bg-purple-950/80 text-purple-300 border border-purple-800 px-2 py-0.5 rounded text-[11px] font-semibold capitalize flex items-center gap-1">
                             <Tag className="w-3 h-3" /> {post.discussionTag}
@@ -554,13 +537,9 @@ export default function ProfilePage() {
                     </div>
 
                     <h3 className="text-base sm:text-lg font-bold text-white">
-                      {post.status === 'active' ? (
-                        <Link href={exactRoute} className="hover:text-blue-400 transition">
-                          {post.title}
-                        </Link>
-                      ) : (
-                        post.title
-                      )}
+                      <Link href={exactRoute} className="hover:text-blue-400 transition">
+                        {post.title}
+                      </Link>
                     </h3>
 
                     {post.mediaUrl && (
@@ -736,144 +715,6 @@ export default function ProfilePage() {
         )}
 
       </main>
-
-      {/* RECEIPT PRINT MODAL */}
-      {selectedReceipt && (
-        <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto font-sans">
-          <div className="bg-white text-slate-900 rounded-[2.5rem] p-8 sm:p-10 max-w-2xl w-full space-y-6 shadow-2xl relative my-8 border border-slate-200 print:p-0 print:border-none print:shadow-none print:my-0">
-            
-            <button 
-              onClick={() => setSelectedReceipt(null)}
-              className="absolute top-6 right-6 text-slate-400 hover:text-slate-800 p-1.5 rounded-full transition print:hidden"
-            >
-              <X className="w-5 h-5" />
-            </button>
-
-            <div className="flex items-start justify-between border-b-2 border-slate-900 pb-4">
-              <div className="space-y-1">
-                <div className="text-3xl font-black tracking-tight text-slate-900">
-                  come<span className="text-blue-600">Back</span>
-                </div>
-                <p className="text-xs font-bold text-slate-500">Direct Peer-to-Peer Student Support Network</p>
-                <p className="text-[11px] text-slate-400 font-mono">
-                  collegeeasy.official@gmail.com • 0% Platform Commission
-                </p>
-              </div>
-
-              <div className="text-right space-y-1">
-                <span className="inline-block bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-[11px] px-3.5 py-1 rounded-full uppercase tracking-wider">
-                  DIRECT PAYMENT SLIP
-                </span>
-                <p className="text-xs font-mono text-slate-500 pt-1">
-                  Receipt ID: <span className="font-bold text-slate-700">{selectedReceipt.txId}</span>
-                </p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/80 p-4 rounded-2xl border border-slate-200/80 text-xs">
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">DATE</span>
-                <span className="font-extrabold text-slate-900 text-sm">{selectedReceipt.date}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">TIME</span>
-                <span className="font-extrabold text-slate-900 text-sm">{selectedReceipt.time}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">GATEWAY REF</span>
-                <span className="font-mono font-semibold text-slate-700 truncate block text-xs">{selectedReceipt.razorpayId}</span>
-              </div>
-              <div>
-                <span className="text-slate-400 block font-bold uppercase text-[9px] tracking-wider">PAYOUT FEE</span>
-                <span className="font-extrabold text-emerald-600 text-sm">₹0.00 (0% Fee)</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-              <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200/80 space-y-2">
-                <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 pb-1.5">
-                  DONOR DETAILS
-                </h4>
-                <div className="space-y-1">
-                  <p><span className="font-bold text-slate-700">Name:</span> <span className="font-mono text-slate-900">{selectedReceipt.donorName}</span></p>
-                  <p><span className="font-bold text-slate-700">Payment Route:</span> <span className="text-slate-800">Direct Razorpay UPI/Card</span></p>
-                </div>
-              </div>
-
-              <div className="p-4 bg-slate-50/60 rounded-2xl border border-slate-200/80 space-y-2">
-                <h4 className="font-black text-slate-400 uppercase text-[10px] tracking-wider border-b border-slate-200 pb-1.5">
-                  DIRECT STUDENT BENEFICIARY
-                </h4>
-                <div className="space-y-1">
-                  <p><span className="font-bold text-slate-700">Student:</span> <span className="font-bold text-slate-900">{selectedReceipt.studentName}</span></p>
-                  <p className="leading-snug"><span className="font-bold text-slate-700">College:</span> <span className="text-slate-800">{selectedReceipt.studentCollege}</span></p>
-                  <p><span className="font-bold text-slate-700">Student UPI/VPA:</span> <span className="font-mono text-slate-900">{selectedReceipt.studentUpi}</span></p>
-                </div>
-              </div>
-            </div>
-
-            <div className="space-y-3 pt-2">
-              <table className="w-full text-xs text-left border-collapse">
-                <thead>
-                  <tr className="border-b-2 border-slate-900 text-slate-500 uppercase font-black text-[10px] tracking-wider">
-                    <th className="py-2.5">DESCRIPTION</th>
-                    <th className="py-2.5 text-right">AMOUNT (INR)</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100 text-slate-800 font-medium">
-                  <tr>
-                    <td className="py-3 font-semibold text-slate-900">
-                      Direct Exam Re-Appear Fee Contribution ({selectedReceipt.subjectCode})
-                    </td>
-                    <td className="py-3 text-right font-bold text-slate-900">₹{selectedReceipt.amount}.00</td>
-                  </tr>
-                  <tr className="text-slate-400 italic">
-                    <td className="py-2">comeBACK Platform Fee</td>
-                    <td className="py-2 text-right font-semibold text-emerald-600">₹0.00</td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div className="border-t-2 border-slate-900 pt-3 flex justify-between items-center">
-                <span className="font-black text-base text-slate-900">Total Direct Transfer to Student</span>
-                <span className="font-black text-2xl text-blue-600">₹{selectedReceipt.amount}.00</span>
-              </div>
-            </div>
-
-            <div className="pt-4 border-t border-slate-200 flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <div className="w-12 h-12 rounded-full border-2 border-dashed border-emerald-500 bg-emerald-50 text-emerald-600 flex flex-col items-center justify-center text-[8px] font-black leading-tight text-center p-1">
-                  <span>100%</span>
-                  <span>DIRECT</span>
-                  <span>P2P</span>
-                </div>
-              </div>
-
-              <div className="text-right space-y-0.5">
-                <p className="font-black text-slate-900 text-sm">Rohit Dalal</p>
-                <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider">PLATFORM MANAGER • COMEBACK</p>
-              </div>
-            </div>
-
-            <div className="pt-2 flex items-center justify-between gap-4 print:hidden">
-              <button 
-                onClick={() => window.print()}
-                className="px-6 py-3.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-xs uppercase tracking-wider rounded-2xl transition shadow-lg shadow-blue-600/30 flex items-center gap-2 active:scale-95"
-              >
-                <Printer className="w-4 h-4" /> Print / Download PDF Receipt
-              </button>
-
-              <button 
-                onClick={() => setSelectedReceipt(null)}
-                className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs uppercase tracking-wider rounded-2xl transition"
-              >
-                Close Receipt
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
 
       {/* CREATE POST MODAL */}
       {showCreateModal && (
