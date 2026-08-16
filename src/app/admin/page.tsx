@@ -118,35 +118,34 @@ export default function AdminDashboardPage() {
     ]
   });
 
-  // FETCH REAL DATA FROM LOCALSTORAGE & COMPUTE ANALYTICS DYNAMICALLY BASED ON LOGINS & POSTS
+  // FETCH REAL DATA DIRECTLY FROM SUPABASE DATABASE
   useEffect(() => {
     const loadAdminData = async () => {
-      // 1. Fetch User Posts & Appeals
-      let combinedPosts: AdminPost[] = [];
-      const savedUser = localStorage.getItem('user_posts');
-      if (savedUser) {
-        try {
-          const parsed = JSON.parse(savedUser);
-          if (Array.isArray(parsed)) combinedPosts = [...parsed];
-        } catch (e) {
-          console.error(e);
-        }
-      }
+      // 1. Fetch Posts & Appeals directly from Supabase 'posts' table
+      const { data: postsData, error: postsError } = await supabase
+        .from('posts')
+        .select('*')
+        .order('created_at', { ascending: false });
 
-      const savedFeed = localStorage.getItem('feed_posts');
-      if (savedFeed) {
-        try {
-          const parsedFeed = JSON.parse(savedFeed);
-          if (Array.isArray(parsedFeed)) {
-            parsedFeed.forEach((fPost: any) => {
-              if (!combinedPosts.some(p => p.id === fPost.id)) {
-                combinedPosts.push(fPost);
-              }
-            });
-          }
-        } catch (e) {
-          console.error(e);
-        }
+      let combinedPosts: AdminPost[] = [];
+      if (!postsError && postsData) {
+        combinedPosts = postsData.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          story: p.story,
+          category: p.category,
+          studentName: p.student_name || 'Student Account',
+          studentEmail: p.student_email || 'student@dtu.ac.in',
+          college: p.college || 'DTU',
+          subjectCode: p.subject_code,
+          subjectGrade: p.subject_grade,
+          goal: p.goal || 0,
+          raised: p.raised || 0,
+          status: p.status || 'active',
+          datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
+          mediaType: p.media_type,
+          mediaUrl: p.media_url,
+        }));
       }
 
       setAllPosts(combinedPosts);
@@ -195,7 +194,7 @@ export default function AdminDashboardPage() {
       }
       setTransactions(loadedTransactions);
 
-      // 4. Fetch Registered Users from Supabase if possible, or fallback to local sessions/logins
+      // 4. Fetch Registered Users Count from Supabase
       let registeredUserCount = 1;
       try {
         const { count, error } = await supabase
@@ -212,7 +211,6 @@ export default function AdminDashboardPage() {
       const uniqueDonorsCount = new Set(loadedTransactions.map((tx: any) => tx.donorEmail || tx.donorName)).size;
       const verifiedAppealsCount = combinedPosts.filter(p => p.status === 'active' || p.category === 'funding').length;
       
-      // Calculate college distribution dynamically based on user profile entries / posts
       let dtuCount = 0;
       let nsutCount = 0;
       let igdtuwCount = 0;
@@ -224,10 +222,9 @@ export default function AdminDashboardPage() {
         else if (c.includes('nsut') || c.includes('netaji')) nsutCount++;
         else if (c.includes('igdtuw') || c.includes('indira gandhi')) igdtuwCount++;
         else if (c.includes('ipu') || c.includes('indraprastha') || c.includes('ggsip')) ipuCount++;
-        else dtuCount++; // default fallback bucket
+        else dtuCount++;
       });
 
-      // Ensure minimum distribution if empty
       if (dtuCount === 0 && nsutCount === 0 && igdtuwCount === 0 && ipuCount === 0) {
         dtuCount = 1;
       }
@@ -307,13 +304,15 @@ export default function AdminDashboardPage() {
   const handleApprove = async (post: AdminPost) => {
     const updatedPosts = allPosts.map(p => p.id === post.id ? { ...p, status: 'active' as const } : p);
     setAllPosts(updatedPosts);
-    localStorage.setItem('user_posts', JSON.stringify(updatedPosts));
 
-    const savedFeed = localStorage.getItem('feed_posts');
-    let feedArray = savedFeed ? JSON.parse(savedFeed) : [];
-    if (!feedArray.some((f: any) => f.id === post.id)) {
-      feedArray = [{ ...post, status: 'active' }, ...feedArray];
-      localStorage.setItem('feed_posts', JSON.stringify(feedArray));
+    // Update status in Supabase database
+    const { error } = await supabase
+      .from('posts')
+      .update({ status: 'active' })
+      .eq('id', post.id);
+
+    if (error) {
+      console.error('Error approving post in Supabase:', error.message);
     }
 
     try {
@@ -345,7 +344,11 @@ export default function AdminDashboardPage() {
         : p
     );
     setAllPosts(updatedPosts);
-    localStorage.setItem('user_posts', JSON.stringify(updatedPosts));
+
+    await supabase
+      .from('posts')
+      .update({ status: 'rejected' })
+      .eq('id', targetPost.id);
 
     try {
       await fetch('/api/send-status-email', {
@@ -368,22 +371,14 @@ export default function AdminDashboardPage() {
     setRejectionReasonInput('');
   };
 
-  const handleDeletePost = (postId: string) => {
+  const handleDeletePost = async (postId: string) => {
     if (confirm('ADMIN ACTION: Delete post permanently?')) {
-      const updatedPosts = allPosts.filter(p => p.id !== postId);
-      setAllPosts(updatedPosts);
-      localStorage.setItem('user_posts', JSON.stringify(updatedPosts));
-
-      const savedFeed = localStorage.getItem('feed_posts');
-      if (savedFeed) {
-        try {
-          const feedArray = JSON.parse(savedFeed);
-          const updatedFeed = feedArray.filter((p: any) => p.id !== postId);
-          localStorage.setItem('feed_posts', JSON.stringify(updatedFeed));
-        } catch (e) {
-          console.error(e);
-        }
+      const { error } = await supabase.from('posts').delete().eq('id', postId);
+      if (error) {
+        alert('Failed to delete post from Supabase.');
+        return;
       }
+      setAllPosts(allPosts.filter(p => p.id !== postId));
     }
   };
 
@@ -617,7 +612,7 @@ export default function AdminDashboardPage() {
 
                       {post.category === 'funding' && (
                         <p className="text-xs text-slate-400 pt-1">
-                          Subject: <span className="text-slate-200 font-mono font-bold">{post.subjectCode} ({post.subjectGrade})</span> • Target: <span className="text-emerald-400 font-bold">₹{post.goal}</span> • UPI: <span className="text-slate-200 font-mono">{post.bankDetails?.upiId}</span>
+                          Subject: <span className="text-slate-200 font-mono font-bold">{post.subjectCode} ({post.subjectGrade})</span> • Target: <span className="text-emerald-400 font-bold">₹{post.goal}</span>
                         </p>
                       )}
                     </div>
