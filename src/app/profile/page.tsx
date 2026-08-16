@@ -50,11 +50,7 @@ interface UserPost {
   commentsCount: number;
   mediaType?: 'image' | 'video';
   mediaUrl?: string;
-  bankDetails?: {
-    upiId: string;
-    accountNumber: string;
-    ifscCode: string;
-  };
+  upiId?: string;
 }
 
 interface UserDonation {
@@ -140,11 +136,7 @@ export default function ProfilePage() {
           commentsCount: 0,
           mediaType: p.media_type,
           mediaUrl: p.media_url,
-          bankDetails: {
-            upiId: p.upi_id || 'dalalrohit8241@okicici',
-            accountNumber: p.account_number || '123456789012',
-            ifscCode: p.ifsc_code || 'SBIN0001234'
-          }
+          upiId: p.upi_id || 'Not Provided'
         }));
         setUserPosts(mappedPosts);
         
@@ -188,8 +180,6 @@ export default function ProfilePage() {
 
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [upiId, setUpiId] = useState('');
-  const [accountNumber, setAccountNumber] = useState('');
-  const [ifscCode, setIfscCode] = useState('');
 
   const [collegeIdFile, setCollegeIdFile] = useState<File | null>(null);
   const [resultFile, setResultFile] = useState<File | null>(null);
@@ -265,8 +255,7 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
-    // Insert into Supabase table including explicit upi_id, account_number, and ifsc_code columns with fallbacks
-    // Insert directly into Supabase table using only the user's actual input
+    // Insert directly into Supabase table using only UPI VPA
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -282,9 +271,7 @@ export default function ProfilePage() {
         status: isFunding ? 'pending_verification' : 'active',
         media_type: mediaType || null,
         media_url: mediaUrl || null,
-        upi_id: isFunding ? upiId.trim() : null,                  // <--- User's exact typed UPI ID
-        account_number: isFunding ? accountNumber.trim() : null,  // <--- User's exact typed Account No.
-        ifsc_code: isFunding ? ifscCode.trim() : null,            // <--- User's exact typed IFSC Code
+        upi_id: isFunding ? upiId.trim() : null,                    // Only store UPI VPA
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,
@@ -311,11 +298,7 @@ export default function ProfilePage() {
         commentsCount: 0,
         mediaType: data[0].media_type,
         mediaUrl: data[0].media_url,
-        bankDetails: {
-          upiId: data[0].upi_id,
-          accountNumber: data[0].account_number,
-          ifscCode: data[0].ifsc_code,
-        }
+        upiId: data[0].upi_id
       };
       setUserPosts([newCreatedPost, ...userPosts]);
     }
@@ -327,8 +310,6 @@ export default function ProfilePage() {
     setNewSubjectCode('');
     setNewSubjectGrade('');
     setUpiId('');
-    setAccountNumber('');
-    setIfscCode('');
     setMediaFile(null);
     setCollegeIdFile(null);
     setResultFile(null);
@@ -861,7 +842,7 @@ export default function ProfilePage() {
 
                   <div className="space-y-3 pt-2 border-t border-slate-800">
                     <span className="text-xs font-bold text-emerald-400 uppercase tracking-wider block flex items-center gap-1.5">
-                      <Building2 className="w-4 h-4" /> Direct Payout Settlement Destination
+                      <Building2 className="w-4 h-4" /> Direct UPI Payout Destination
                     </span>
 
                     <div className="space-y-1">
@@ -874,32 +855,6 @@ export default function ProfilePage() {
                         placeholder="e.g. rohit@okicici"
                         className="w-full bg-[#181818] border border-slate-800 focus:border-blue-500 text-white rounded-xl p-2.5 focus:outline-none text-xs font-mono"
                       />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-300">Bank Account Number *</label>
-                        <input 
-                          type="text"
-                          required
-                          value={accountNumber}
-                          onChange={(e) => setAccountNumber(e.target.value)}
-                          placeholder="Account No."
-                          className="w-full bg-[#181818] border border-slate-800 focus:border-blue-500 text-white rounded-xl p-2.5 focus:outline-none text-xs font-mono"
-                        />
-                      </div>
-
-                      <div className="space-y-1">
-                        <label className="text-xs font-semibold text-slate-300">IFSC Code *</label>
-                        <input 
-                          type="text"
-                          required
-                          value={ifscCode}
-                          onChange={(e) => setIfscCode(e.target.value)}
-                          placeholder="e.g. SBIN0001234"
-                          className="w-full bg-[#181818] border border-slate-800 focus:border-blue-500 text-white rounded-xl p-2.5 focus:outline-none text-xs font-mono"
-                        />
-                      </div>
                     </div>
                   </div>
 
@@ -916,7 +871,7 @@ export default function ProfilePage() {
 
                     <div className="bg-[#181818] p-2.5 rounded-xl border border-slate-800 flex items-center justify-between">
                       <span className="text-slate-400">2. Marksheet / Result Sheet:</span>
-                      <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-ln rounded cursor-pointer transition">
+                      <label className="bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-1 rounded cursor-pointer transition">
                         {resultFile ? resultFile.name : 'Choose File'}
                         <input type="file" required accept="image/*,.pdf" onChange={(e) => setResultFile(e.target.files?.[0] || null)} className="hidden" />
                       </label>
@@ -970,4 +925,3 @@ export default function ProfilePage() {
     </div>
   );
 }
-// hh

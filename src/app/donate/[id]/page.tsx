@@ -34,11 +34,7 @@ interface FeeAppealPost {
   goal?: number;
   raised?: number;
   datePosted: string;
-  bankDetails?: {
-    upiId: string;
-    accountNumber: string;
-    ifscCode: string;
-  };
+  upiId?: string;
   documents?: {
     collegeIdUrl?: string;
     marksheetUrl?: string;
@@ -73,7 +69,7 @@ export default function DonatePage() {
     const loadPostData = async () => {
       let foundPost: FeeAppealPost | null = null;
 
-      // 1. Query Supabase Database Table First and map exact columns
+      // 1. Query Supabase Database Table First
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -95,11 +91,7 @@ export default function DonatePage() {
           goal: data.goal || 2000,
           raised: data.raised || 0,
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
-          bankDetails: {
-            upiId: data.upi_id || 'Not Provided',
-            accountNumber: data.account_number || 'Not Provided',
-            ifscCode: data.ifsc_code || 'Not Provided'
-          }
+          upiId: data.upi_id || 'Not Provided'
         };
       }
 
@@ -114,11 +106,7 @@ export default function DonatePage() {
               if (matched) {
                 foundPost = {
                   ...matched,
-                  bankDetails: matched.bankDetails || {
-                    upiId: matched.upi_id || 'Not Provided',
-                    accountNumber: matched.account_number || 'Not Provided',
-                    ifscCode: matched.ifsc_code || 'Not Provided'
-                  }
+                  upiId: matched.upi_id || matched.bankDetails?.upiId || 'Not Provided'
                 };
               }
             }
@@ -138,11 +126,7 @@ export default function DonatePage() {
               if (matched) {
                 foundPost = {
                   ...matched,
-                  bankDetails: matched.bankDetails || {
-                    upiId: matched.upi_id || 'Not Provided',
-                    accountNumber: matched.account_number || 'Not Provided',
-                    ifscCode: matched.ifsc_code || 'Not Provided'
-                  }
+                  upiId: matched.upi_id || matched.bankDetails?.upiId || 'Not Provided'
                 };
               }
             }
@@ -188,7 +172,7 @@ export default function DonatePage() {
   };
 
   const handleOpenUpiApp = () => {
-    const targetUpi = campaign?.bankDetails?.upiId;
+    const targetUpi = campaign?.upiId;
     if (!targetUpi || targetUpi === 'Not Provided') {
       alert('Error: No valid UPI ID found for this student account.');
       return;
@@ -233,7 +217,7 @@ export default function DonatePage() {
       studentName: campaign?.studentName || 'Student',
       studentEmail: campaign?.studentEmail || 'student@dtu.ac.in',
       studentCollege: campaign?.college || 'DTU',
-      studentUpi: campaign?.bankDetails?.upiId || 'Not Provided',
+      studentUpi: campaign?.upiId || 'Not Provided',
       subjectCode: campaign?.subjectCode || 'Exam Fee',
       campaignTitle: campaign?.title,
       amount: selectedAmount,
@@ -362,7 +346,7 @@ export default function DonatePage() {
                 100% Direct Student Settlement <span className="text-xs font-normal text-emerald-400">(0% Platform Fee)</span>
               </h3>
               <p className="text-xs text-slate-300">
-                Every rupee you donate goes directly into {studentName}&apos;s verified bank/UPI account via direct peer-to-peer UPI transfer.
+                Every rupee you donate goes directly into {studentName}&apos;s verified UPI account via direct peer-to-peer transfer.
               </p>
             </div>
           </div>
@@ -437,33 +421,31 @@ export default function DonatePage() {
               </div>
             </div>
 
-            {/* VERIFIED DIRECT SETTLEMENT DESTINATION */}
+            {/* VERIFIED DIRECT SETTLEMENT DESTINATION (UPI VPA ONLY) */}
             <div className="space-y-3 pt-2 border-t border-slate-800">
               <h3 className="text-xs font-black text-amber-400 uppercase tracking-wider flex items-center gap-1.5">
-                <Building2 className="w-4 h-4" /> VERIFIED DIRECT SETTLEMENT DESTINATION
+                <Building2 className="w-4 h-4" /> VERIFIED DIRECT UPI DESTINATION
               </h3>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
-                <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">UPI VPA</span>
-                  <span className="font-mono font-bold text-emerald-400 truncate block">
-                    {campaign.bankDetails?.upiId || 'Not Provided'}
+              <div className="bg-[#121214] p-4 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+                <div>
+                  <span className="text-[10px] text-slate-500 font-bold uppercase block">UPI VPA ID</span>
+                  <span className="font-mono font-bold text-emerald-400 text-sm">
+                    {campaign.upiId || 'Not Provided'}
                   </span>
                 </div>
-
-                <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">BANK ACCOUNT</span>
-                  <span className="font-mono font-bold text-white truncate block">
-                    {campaign.bankDetails?.accountNumber || 'Not Provided'}
-                  </span>
-                </div>
-
-                <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 space-y-1">
-                  <span className="text-[10px] text-slate-500 font-bold uppercase block">IFSC CODE</span>
-                  <span className="font-mono font-bold text-white truncate block">
-                    {campaign.bankDetails?.ifscCode || 'Not Provided'}
-                  </span>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (campaign.upiId) {
+                      navigator.clipboard.writeText(campaign.upiId);
+                      alert('UPI ID copied to clipboard!');
+                    }
+                  }}
+                  className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg transition"
+                >
+                  Copy UPI ID
+                </button>
               </div>
             </div>
 
@@ -488,7 +470,7 @@ export default function DonatePage() {
                 </div>
 
                 <div className="bg-[#121214] p-3.5 rounded-xl border border-slate-800 flex items-center justify-between">
-                  <span className="font-medium text-slate-200">Student Bank Account & UPI ID Verified</span>
+                  <span className="font-medium text-slate-200">Student UPI ID Verified</span>
                   <span className="text-emerald-400 font-bold bg-emerald-950 px-2.5 py-0.5 rounded border border-emerald-800 flex items-center gap-1 text-[11px]">
                     <Check className="w-3 h-3" /> Checked
                   </span>
@@ -648,7 +630,7 @@ export default function DonatePage() {
 
       </main>
 
-      {/* <Footer /> */}
+      <Footer />
     </div>
   );
 }
