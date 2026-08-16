@@ -6,7 +6,7 @@ import { useSearchParams } from 'next/navigation';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '@/lib/supabase'; // Make sure this matches your lib file path
+import { supabase } from '@/lib/supabase';
 import { 
   MessageSquare, 
   Share2, 
@@ -71,7 +71,7 @@ function FeedContent() {
 
   useEffect(() => {
     async function loadSupabasePosts() {
-      // Fetch posts directly from Supabase database so they sync across laptop & phone
+      // Fetch posts directly from Supabase database
       const { data, error } = await supabase
         .from('posts')
         .select('*')
@@ -80,7 +80,11 @@ function FeedContent() {
       if (error) {
         console.error('Error fetching posts from Supabase:', error.message);
       } else {
-        setFeedPosts(data || []);
+        const mapped = (data || []).map((p: any) => ({
+          ...p,
+          discussionTag: p.subject_code || p.discussionTag || p.discussion_tag || 'general',
+        }));
+        setFeedPosts(mapped);
       }
 
       const map = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
@@ -125,7 +129,7 @@ function FeedContent() {
     if (selectedCategory === 'all') return matchesSearch;
     if (selectedCategory === 'funding') return matchesSearch && post.category === 'funding';
     
-    const tag = (post.discussionTag || '').toLowerCase();
+    const tag = (post.discussionTag || post.subject_code || '').toLowerCase();
     return matchesSearch && tag.includes(selectedCategory.toLowerCase());
   });
 
@@ -229,9 +233,9 @@ function FeedContent() {
                         <Trophy className="w-3.5 h-3.5 text-emerald-400" /> Fee Appeal
                       </span>
                     ) : (
-                      post.discussionTag && (
+                      (post.discussionTag || post.subject_code) && (
                         <span className="bg-purple-950/80 text-purple-300 border border-purple-800/80 px-2.5 py-0.5 rounded-full font-bold text-xs capitalize">
-                          {post.discussionTag}
+                          {post.discussionTag || post.subject_code}
                         </span>
                       )
                     )}
