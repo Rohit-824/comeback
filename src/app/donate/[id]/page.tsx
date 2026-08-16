@@ -97,8 +97,8 @@ export default function DonatePage() {
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
           bankDetails: {
             upiId: data.upi_id || (data.student_email ? `${data.student_email.split('@')[0]}@okicici` : 'student@okicici'),
-            accountNumber: data.account_number || 'Not Provided',
-            ifscCode: data.ifsc_code || 'Not Provided'
+            accountNumber: data.account_number || 'Not Provided', // Pulls exact account number from Supabase
+            ifscCode: data.ifsc_code || 'Not Provided'            // Pulls exact IFSC code from Supabase
           }
         };
       }
@@ -110,7 +110,17 @@ export default function DonatePage() {
           try {
             const parsed = JSON.parse(savedUserPosts);
             if (Array.isArray(parsed)) {
-              foundPost = parsed.find((p: any) => p.id === postId) || null;
+              const matched = parsed.find((p: any) => p.id === postId);
+              if (matched) {
+                foundPost = {
+                  ...matched,
+                  bankDetails: matched.bankDetails || {
+                    upiId: matched.upi_id || 'student@okicici',
+                    accountNumber: matched.account_number || 'Not Provided',
+                    ifscCode: matched.ifsc_code || 'Not Provided'
+                  }
+                };
+              }
             }
           } catch (e) {
             console.error('Error parsing user_posts:', e);
@@ -124,7 +134,17 @@ export default function DonatePage() {
           try {
             const parsedFeed = JSON.parse(savedFeedPosts);
             if (Array.isArray(parsedFeed)) {
-              foundPost = parsedFeed.find((p: any) => p.id === postId) || null;
+              const matched = parsedFeed.find((p: any) => p.id === postId);
+              if (matched) {
+                foundPost = {
+                  ...matched,
+                  bankDetails: matched.bankDetails || {
+                    upiId: matched.upi_id || 'student@okicici',
+                    accountNumber: matched.account_number || 'Not Provided',
+                    ifscCode: matched.ifsc_code || 'Not Provided'
+                  }
+                };
+              }
             }
           } catch (e) {
             console.error('Error parsing feed_posts:', e);
