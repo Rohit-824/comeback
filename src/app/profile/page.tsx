@@ -955,6 +955,66 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* RECEIPT MODAL */}
+      {selectedReceipt && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 font-sans">
+          <div className="bg-[#1C1C1E] border border-slate-800 rounded-3xl p-6 sm:p-8 max-w-sm w-full space-y-6 shadow-2xl relative">
+            
+            <button 
+              onClick={() => setSelectedReceipt(null)}
+              className="absolute top-5 right-5 text-slate-400 hover:text-white p-1 rounded-lg"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="text-center space-y-2">
+              <div className="w-12 h-12 bg-emerald-900/40 text-emerald-400 rounded-full flex items-center justify-center mx-auto border border-emerald-800/60 mb-4">
+                <CheckCircle2 className="w-6 h-6" />
+              </div>
+              <h2 className="text-3xl font-black text-white">₹{selectedReceipt.amount}.00</h2>
+              <p className="text-[11px] font-bold text-emerald-400 tracking-widest uppercase">Transaction Successful</p>
+            </div>
+
+            <div className="bg-[#121214] rounded-2xl border border-slate-800 p-5 space-y-3.5 text-xs sm:text-sm">
+              <div className="flex justify-between border-b border-slate-800/80 pb-3">
+                <span className="text-slate-400">Paid to</span>
+                <span className="text-white font-bold text-right">
+                  {selectedReceipt.studentName} <br/>
+                  <span className="text-[10px] text-slate-500 font-normal">{selectedReceipt.studentCollege}</span>
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/80 pb-3">
+                <span className="text-slate-400">UPI Ref / UTR</span>
+                <span className="text-white font-mono font-bold tracking-wide">
+                  {selectedReceipt.razorpayId.replace('UPI-UTR-', '')}
+                </span>
+              </div>
+              <div className="flex justify-between border-b border-slate-800/80 pb-3">
+                <span className="text-slate-400">Txn ID</span>
+                <span className="text-white font-mono font-bold tracking-wide">{selectedReceipt.txId}</span>
+              </div>
+              <div className="flex justify-between pb-1">
+                <span className="text-slate-400">Date & Time</span>
+                <span className="text-white text-right font-medium">
+                  {selectedReceipt.date} <br/>
+                  <span className="text-[10px] text-slate-500">{selectedReceipt.time}</span>
+                </span>
+              </div>
+            </div>
+
+            <div className="pt-2">
+              <button
+                onClick={() => { window.print(); }}
+                className="w-full py-3.5 bg-[#121214] hover:bg-slate-800 text-white font-bold text-[11px] sm:text-xs uppercase tracking-wider rounded-xl border border-slate-800 transition flex items-center justify-center gap-2"
+              >
+                <Printer className="w-4 h-4" /> Print / Save as PDF
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
       {/* <Footer /> */}
     </div>
   );
