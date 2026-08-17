@@ -111,12 +111,17 @@ export default function ProfilePage() {
 
   const [selectedReceipt, setSelectedReceipt] = useState<UserDonation | null>(null);
 
-  // LOAD REAL USER DATA FROM SUPABASE
+  // LOAD REAL USER DATA FROM SUPABASE FILTERED BY CURRENT USER EMAIL
   useEffect(() => {
+    if (!user?.email && !currentUser?.email) return;
+
     async function fetchProfileData() {
+      const activeEmail = currentUser?.email || user?.email || '';
+
       const { data: postsData, error } = await supabase
         .from('posts')
         .select('*')
+        .eq('student_email', activeEmail)
         .order('created_at', { ascending: false });
 
       if (!error && postsData) {
@@ -143,9 +148,24 @@ export default function ProfilePage() {
         }));
         setUserPosts(mappedPosts);
         
-        const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
-        const uniqueSaved = mappedPosts.filter(p => savedIds[p.id]);
-        setSavedPostsList(uniqueSaved);
+        const { data: allPosts } = await supabase.from('posts').select('*');
+        if (allPosts) {
+          const allMapped = allPosts.map((p: any) => ({
+            id: p.id,
+            title: p.title,
+            story: p.story,
+            category: p.category,
+            discussionTag: p.subject_code || p.discussion_tag || 'general',
+            datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
+            studentName: p.student_name || 'Student',
+            college: p.college || 'DTU',
+            status: p.status || 'active',
+            commentsCount: 0,
+          }));
+          const savedIds = JSON.parse(localStorage.getItem('saved_posts_map') || '{}');
+          const uniqueSaved = allMapped.filter((p: any) => savedIds[p.id]);
+          setSavedPostsList(uniqueSaved);
+        }
       }
 
       const userDonations = localStorage.getItem('user_donations');
@@ -170,7 +190,7 @@ export default function ProfilePage() {
     }
 
     fetchProfileData();
-  }, []);
+  }, [user, currentUser]);
 
   // Form State
   const [newTitle, setNewTitle] = useState('');
@@ -1074,7 +1094,6 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* <Footer /> */}
     </div>
   );
 }
