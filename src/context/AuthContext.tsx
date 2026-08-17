@@ -51,7 +51,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchProfile = async (userId: string): Promise<Profile | null> => {
     try {
-      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single();
+      const { data, error } = await supabase.from('profiles').select('*').eq('id', userId).maybeSingle();
+      if (error || !data) return null;
       return data as Profile;
     } catch {
       return null;
@@ -111,13 +112,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(result.error || 'Registration failed.');
       }
 
-      // Account is created pre-confirmed by /api/register, so we can sign
-      // in immediately — no "confirm your email" step for the user.
+      // Immediately sign in the newly created user
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: data.email,
         password: data.password,
       });
-      if (signInError) throw new Error(signInError.message);
+
+      if (signInError) {
+        // If immediate sign-in is blocked by strict client auth settings, 
+        // return success so they can manually sign in, since backend row is already created.
+        return { success: true, message: 'Account created! Please sign in now.' };
+      }
 
       const { data: { session } } = await supabase.auth.getSession();
       if (session?.user) {
