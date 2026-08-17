@@ -3,7 +3,6 @@ import { createClient } from '@supabase/supabase-js';
 
 export async function POST(req: Request) {
   try {
-    // Lazy-initialize inside the handler function to prevent static build crash
     const supabaseAdmin = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL || 'https://placeholder.supabase.co',
       process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || 'placeholder-key'
@@ -21,8 +20,6 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Password must be at least 6 characters.' }, { status: 400 });
     }
 
-    // email_confirm: true means the account is usable immediately — no
-    // "confirm your email" link required, since we send our own welcome email.
     const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
@@ -44,12 +41,12 @@ export async function POST(req: Request) {
     };
 
     if (role === 'student') {
-      profilePayload.college = college;
-      profilePayload.branch = branch;
-      profilePayload.year = year;
-      profilePayload.roll_number = rollNumber;
+      profilePayload.college = college || null;
+      profilePayload.branch = branch || null;
+      profilePayload.year = year || null;
+      profilePayload.roll_number = rollNumber || null;
     } else {
-      profilePayload.occupation = occupation;
+      profilePayload.occupation = occupation || null;
     }
 
     const { error: profileError } = await supabaseAdmin
@@ -57,13 +54,14 @@ export async function POST(req: Request) {
       .upsert(profilePayload, { onConflict: 'id' });
 
     if (profileError) {
-      // Don't leave an orphan auth user if the profile row couldn't be created.
+      console.error('Supabase profile upsert error details:', profileError);
       await supabaseAdmin.auth.admin.deleteUser(created.user.id);
       return NextResponse.json({ success: false, error: profileError.message }, { status: 400 });
     }
 
     return NextResponse.json({ success: true, userId: created.user.id });
   } catch (err: any) {
+    console.error('Registration API crash:', err);
     return NextResponse.json({ success: false, error: err.message }, { status: 500 });
   }
 }
