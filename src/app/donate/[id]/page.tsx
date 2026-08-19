@@ -81,8 +81,8 @@ export default function DonatePage() {
           branch: data.branch || 'Engineering Physics',
           year: data.year || '2nd Year',
           subjectCode: data.subject_code || 'EXAM',
-          goal: data.goal || 2000,
-          raised: data.raised || 0,
+          goal: Number(data.goal) || 2000,
+          raised: Number(data.raised) || 0,
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
           upiId: data.upi_id || 'Not Provided'
         };
@@ -118,6 +118,12 @@ export default function DonatePage() {
       return;
     }
 
+    // Standard UPI transaction limit enforcement (Max ₹1,00,000)
+    if (selectedAmount > 100000) {
+      alert('Standard UPI transaction limit is ₹1,00,000. For amounts exceeding this, please split your contribution into multiple transactions.');
+      return;
+    }
+
     requireAuthAction(() => {
       setStep('utr');
     });
@@ -142,8 +148,12 @@ export default function DonatePage() {
 
   const handleVerifyAndSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!utrNumber || utrNumber.length < 8) {
-      alert('Please enter a valid 12-digit UTR / Transaction Reference number from your UPI app.');
+
+    // Strict 12-digit numeric UTR verification regex check
+    const trimmedUtr = utrNumber.trim();
+    const utrRegex = /^\d{12}$/;
+    if (!utrRegex.test(trimmedUtr)) {
+      alert('Invalid UTR format. A valid UPI reference / UTR number must consist of strictly 12 digits.');
       return;
     }
 
@@ -152,7 +162,10 @@ export default function DonatePage() {
     const donorDisplayName = isAnonymous ? 'Anonymous Donor' : (currentUser?.full_name || user?.email || 'Rohit Dalal');
     const donorEmailAddress = currentUser?.email || user?.email || 'donor@dtu.ac.in';
 
-    const newRaised = (campaign?.raised || 0) + selectedAmount;
+    // Mathematical number addition to prevent string concatenation bugs
+    const currentRaised = Number(campaign?.raised || 0);
+    const donationValue = Number(selectedAmount || 0);
+    const newRaised = currentRaised + donationValue;
 
     await supabase
       .from('posts')
@@ -163,7 +176,7 @@ export default function DonatePage() {
     const txRecord = {
       id: `tx-${Date.now()}`,
       txId: `CB-UPI-${Math.floor(10000000 + Math.random() * 90000000)}`,
-      razorpayId: `UPI-UTR-${utrNumber.trim()}`,
+      razorpayId: `UPI-UTR-${trimmedUtr}`,
       donorName: donorDisplayName,
       donorEmail: donorEmailAddress,
       studentName: campaign?.studentName || 'Student',
@@ -172,7 +185,7 @@ export default function DonatePage() {
       studentUpi: campaign?.upiId || 'Not Provided',
       subjectCode: campaign?.subjectCode || 'Exam Fee',
       campaignTitle: campaign?.title,
-      amount: selectedAmount,
+      amount: donationValue,
       date: now.toLocaleDateString('en-IN', { day: '2-digit', month: 'long', year: 'numeric' }),
       time: now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }),
       timeAgo: 'Just now'
@@ -190,7 +203,7 @@ export default function DonatePage() {
       postTitle: campaign?.title,
       postId: campaign?.id,
       timeAgo: 'Just now',
-      content: `Donated ₹${selectedAmount} via UPI to ${campaign?.studentName || 'Student'} (${campaign?.college || 'College'})`
+      content: `Donated ₹${donationValue} via UPI to ${campaign?.studentName || 'Student'} (${campaign?.college || 'College'})`
     };
     const userActivities = JSON.parse(localStorage.getItem('user_activities') || '[]');
     localStorage.setItem('user_activities', JSON.stringify([activityItem, ...userActivities]));
@@ -234,7 +247,7 @@ export default function DonatePage() {
     }
 
     setIsProcessing(false);
-    alert(`Donation Recorded Successfully! UTR Ref: ${utrNumber}. Receipt and email slip generated.`);
+    alert(`Donation Recorded Successfully! UTR Ref: ${trimmedUtr}. Receipt and email slip generated.`);
     router.push('/profile');
   };
 
@@ -267,8 +280,8 @@ export default function DonatePage() {
     );
   }
 
-  const goal = campaign.goal || 2000;
-  const raised = campaign.raised || 0;
+  const goal = Number(campaign.goal) || 2000;
+  const raised = Number(campaign.raised) || 0;
   const remaining = Math.max(0, goal - raised);
   const percentage = Math.min(100, Math.round((raised / goal) * 100));
   const studentName = campaign.studentName || 'Student Beneficiary';
@@ -446,12 +459,14 @@ export default function DonatePage() {
                     <input
                       type="number"
                       min="10"
+                      max="100000"
                       required
                       value={customAmount}
                       onChange={handleCustomAmountChange}
                       className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white font-bold text-sm rounded-xl pl-8 pr-4 py-3 focus:outline-none"
                     />
                   </div>
+                  <p className="text-[10px] text-slate-500">Max limit per standard UPI transaction is ₹1,00,000.</p>
                 </div>
 
                 <div className="space-y-1.5">
@@ -518,13 +533,14 @@ export default function DonatePage() {
                   <input
                     type="text"
                     required
+                    maxLength={12}
                     placeholder="e.g. 435261829012"
                     value={utrNumber}
-                    onChange={(e) => setUtrNumber(e.target.value)}
+                    onChange={(e) => setUtrNumber(e.target.value.replace(/\D/g, ''))}
                     className="w-full bg-[#121214] border border-slate-800 focus:border-blue-500 text-white font-mono font-bold text-sm rounded-xl px-4 py-3 focus:outline-none"
                   />
                   <p className="text-[10px] text-slate-500">
-                    Found in your payment app transaction history after successful payment.
+                    Must be strictly 12 numeric digits from your app history. ({utrNumber.length}/12)
                   </p>
                 </div>
 
