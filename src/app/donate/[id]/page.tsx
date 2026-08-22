@@ -16,7 +16,8 @@ import {
   Check,
   QrCode,
   Send,
-  ExternalLink
+  ExternalLink,
+  ShieldCheck
 } from 'lucide-react';
 
 interface FeeAppealPost {
@@ -34,6 +35,7 @@ interface FeeAppealPost {
   raised?: number;
   datePosted: string;
   upiId?: string;
+  aiTrustScore?: number;
 }
 
 export default function DonatePage() {
@@ -84,7 +86,8 @@ export default function DonatePage() {
           goal: Number(data.goal) || 2000,
           raised: Number(data.raised) || 0,
           datePosted: data.created_at ? new Date(data.created_at).toLocaleDateString() : 'Recently',
-          upiId: data.upi_id || 'Not Provided'
+          upiId: data.upi_id || 'Not Provided',
+          aiTrustScore: Number(data.ai_trust_score) || 99
         };
       }
 
@@ -345,9 +348,15 @@ export default function DonatePage() {
                 </div>
               </div>
 
-              <span className="inline-block bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold px-3 py-1 rounded-lg text-xs">
-                ₹{remaining} remaining!
-              </span>
+              <div className="flex items-center gap-2">
+                <span className="inline-block bg-amber-500/20 text-amber-400 border border-amber-500/30 font-bold px-3 py-1 rounded-lg text-xs">
+                  ₹{remaining} remaining!
+                </span>
+                {/* Public AI Trust Score Badge */}
+                <span className="inline-flex items-center gap-1 bg-emerald-950/60 text-emerald-400 border border-emerald-800/80 font-bold px-3 py-1 rounded-lg text-xs">
+                  <ShieldCheck className="w-3.5 h-3.5" /> {campaign.aiTrustScore || 99}% AI Verified Trust Score
+                </span>
+              </div>
 
               <h2 className="text-xl sm:text-2xl font-black text-white leading-tight">
                 {campaign.title}

@@ -3,14 +3,15 @@ import { Inter } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import Footer from '@/components/Footer';
+import AiChatWidget from '@/components/AiChatWidget';
 
 const inter = Inter({ subsets: ['latin'] });
 
-export const metadata = {
+export const metadata: Metadata = {
   title: 'comeBack — Delhi Engineering Support Network',
   description: 'Turn your academic back into a comeback.',
   icons: {
-    icon: '/icon.png', // Ensure your file in src/app/ is named icon.png
+    icon: '/icon.png',
   },
 };
 
@@ -30,6 +31,8 @@ export default function RootLayout({
             </main>
             <Footer />
           </div>
+          {/* Global AI Chatbot Widget for the Hackathon Demo */}
+          <AiChatWidget />
         </AuthProvider>
       </body>
     </html>
