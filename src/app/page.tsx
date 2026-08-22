@@ -94,7 +94,7 @@ export default function ComeBackHomePage() {
           <div className="max-w-4xl mx-auto space-y-8 relative z-10">
             <div className="inline-flex items-center gap-2 bg-purple-950/70 border border-purple-800/60 text-purple-300 text-xs sm:text-sm font-semibold px-4 py-2 rounded-full shadow-lg shadow-purple-900/20">
               <Sparkles className="w-4 h-4 text-purple-400" />
-              <span>Powered by Gemini AI • 100% Secure Document Audit & Trust Scoring</span>
+              <span>Secured by Gemini AI • 100% Secure Document Audit & Trust Scoring</span>
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
@@ -446,7 +446,7 @@ export default function ComeBackHomePage() {
         </section>
       </main>
 
-      <Footer />
+      {/* <Footer /> */}
     </div>
   );
 }
