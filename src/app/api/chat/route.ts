@@ -12,9 +12,7 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json({ 
-        reply: "Hello! I am comeBack AI. I can guide you through submitting your re-appear fee appeals and explaining our 0% P2P transfer network." 
-      });
+      return NextResponse.json({ reply: 'GEMINI_API_KEY is not defined in .env.local' });
     }
 
     const geminiRes = await fetch(
@@ -27,7 +25,7 @@ export async function POST(req: Request) {
             {
               parts: [
                 {
-                  text: `You are "comeBack AI", a friendly and intelligent assistant built for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. Keep answers concise, helpful, and encouraging.\n\nUser Question: ${latestMessage}`
+                  text: `You are "comeBack AI", a friendly assistant for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes and explain 0% commission direct P2P UPI funding.\n\nUser Question: ${latestMessage}`
                 }
               ]
             }
@@ -37,14 +35,17 @@ export async function POST(req: Request) {
     );
 
     const data = await geminiRes.json();
+    
+    if (data.error) {
+      return NextResponse.json({ reply: `Gemini API Error: ${data.error.message}` });
+    }
+
     const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 
-      'I am here to help you with your college fee appeals and re-appear guidance!';
+      'I am here to help you with your college fee appeals!';
 
     return NextResponse.json({ reply: replyText });
   } catch (error: any) {
     console.error('Chatbot API Error Details:', error);
-    return NextResponse.json({ 
-      reply: 'comeBack AI is ready to help you with your re-appear fee support and 0% P2P transfers!' 
-    });
+    return NextResponse.json({ reply: `Error: ${error.message}` });
   }
 }
