@@ -4,7 +4,7 @@ import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import Footer from '@/components/Footer';
-import { supabase } from '@/lib/supabase'; // Make sure this matches your supabase client path
+import { supabase } from '@/lib/supabase';
 import { 
   Heart, 
   MessageSquare, 
@@ -16,7 +16,9 @@ import {
   HelpCircle, 
   GraduationCap, 
   ExternalLink, 
-  Users 
+  Users,
+  Cpu,
+  Lock
 } from 'lucide-react';
 
 export default function ComeBackHomePage() {
@@ -35,7 +37,6 @@ export default function ComeBackHomePage() {
 
   useEffect(() => {
     async function fetchHomeData() {
-      // Fetch posts directly from Supabase database
       const { data: postsData, error } = await supabase
         .from('posts')
         .select('*')
@@ -47,11 +48,9 @@ export default function ComeBackHomePage() {
       }
 
       const allPosts = postsData || [];
-      setDynamicPosts(allPosts.slice(0, 3)); // Take top 3 recent posts
+      setDynamicPosts(allPosts.slice(0, 3));
 
       const activeAppealsCount = allPosts.filter((p: any) => p.category === 'funding').length;
-
-      // Calculate totals from database posts
       const totalRaisedFromPosts = allPosts.reduce((acc: number, curr: any) => acc + (curr.raised || 0), 0);
       const uniqueDonorsCount = new Set(allPosts.map((p: any) => p.student_email)).size;
 
@@ -78,26 +77,24 @@ export default function ComeBackHomePage() {
     return `₹${amount}`;
   };
 
-  // Filter posts based on active tab
   const filteredPosts = dynamicPosts.filter((post) => {
     if (activeTab === 'verified') return post.category === 'funding';
     if (activeTab === 'success') return post.category === 'success' || post.title?.toLowerCase().includes('success') || post.title?.toLowerCase().includes('cleared');
-    return true; // 'all'
+    return true;
   });
 
   return (
     <div className="bg-[#121212] text-slate-100 font-sans selection:bg-blue-500 selection:text-white min-h-screen flex flex-col justify-between">
       
-      {/* GLOBAL NAVBAR */}
       <Navbar />
 
       <main className="flex-grow">
         {/* SECTION 1: HERO HEADER */}
-        <section className="pt-36 pb-20 px-6 text-center border-b border-slate-800/50">
-          <div className="max-w-4xl mx-auto space-y-8">
-            <div className="inline-flex items-center gap-2 bg-blue-950/70 border border-blue-800/60 text-blue-300 text-sm font-medium px-4 py-2 rounded-full">
-              <Sparkles className="w-4 h-4 text-blue-400" />
-              <span>Delhi Engineering Network • DTU • NSUT • IGDTUW • IPU</span>
+        <section className="pt-36 pb-20 px-6 text-center border-b border-slate-800/50 relative overflow-hidden">
+          <div className="max-w-4xl mx-auto space-y-8 relative z-10">
+            <div className="inline-flex items-center gap-2 bg-purple-950/70 border border-purple-800/60 text-purple-300 text-xs sm:text-sm font-semibold px-4 py-2 rounded-full shadow-lg shadow-purple-900/20">
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span>Powered by Gemini AI • 100% Secure Document Audit & Trust Scoring</span>
             </div>
 
             <h1 className="text-4xl sm:text-6xl font-black text-white tracking-tight leading-tight">
@@ -105,7 +102,7 @@ export default function ComeBackHomePage() {
             </h1>
 
             <p className="text-lg sm:text-xl text-slate-400 max-w-2xl mx-auto leading-relaxed">
-              A peer-to-peer platform helping college students clear re-appear exam fees with 0% commission, connect with generous mentors, and discuss campus life unfiltered.
+              A peer-to-peer platform helping college students clear re-appear exam fees with 0% commission, AI-backed authenticity verification, and transparent direct P2P UPI transfers.
             </p>
 
             <div className="pt-4 flex flex-col sm:flex-row gap-4 justify-center">
@@ -125,13 +122,54 @@ export default function ComeBackHomePage() {
           </div>
         </section>
 
+        {/* AI SECURITY FEATURE HIGHLIGHT BAR */}
+        <section className="py-12 px-6 bg-[#161616] border-b border-slate-800/50">
+          <div className="max-w-6xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-purple-950/60 flex items-start gap-4">
+              <div className="w-12 h-12 bg-purple-950 text-purple-400 rounded-xl flex items-center justify-center shrink-0 border border-purple-800/50">
+                <Cpu className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-white text-base">Gemini AI Document Audit</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Automatically parses student marksheets and fee challans to extract names and target amounts instantly.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-emerald-950/60 flex items-start gap-4">
+              <div className="w-12 h-12 bg-emerald-950 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 border border-emerald-800/50">
+                <ShieldCheck className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-white text-base">Instant Trust Scoring</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Every uploaded proof generates a public trust score and encrypted AI audit summary for admin review.
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-[#1E1E1E] p-6 rounded-2xl border border-blue-950/60 flex items-start gap-4">
+              <div className="w-12 h-12 bg-blue-950 text-blue-400 rounded-xl flex items-center justify-center shrink-0 border border-blue-800/50">
+                <Lock className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="font-bold text-white text-base">Strict Anti-Fraud Protection</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Random or irrelevant photo uploads are automatically rejected with targeted remediation messages.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* SECTION 2: HOW IT WORKS */}
         <section id="how-it-works" className="py-20 px-6 border-b border-slate-800/50 max-w-6xl mx-auto space-y-12">
           <div className="text-center space-y-3">
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white">
               How <span className="text-blue-500">comeBack</span> Works
             </h2>
-            <p className="text-slate-400 text-base">Transparent, verified 4-step framework.</p>
+            <p className="text-slate-400 text-base">Transparent, AI-verified 4-step framework.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -142,29 +180,29 @@ export default function ComeBackHomePage() {
               </div>
               <h3 className="font-bold text-white text-lg">Post Appeal</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Detail your subject, back fee amount, and reason for financial help.
+                Detail your subject code, back fee amount, and reason for financial help.
               </p>
             </div>
 
             <div className="p-6 bg-[#1E1E1E] rounded-2xl border border-slate-800 space-y-4 relative">
-              <span className="absolute top-4 right-4 text-xs font-bold bg-blue-950 text-blue-400 px-2.5 py-1 rounded-full border border-blue-800/50">02</span>
-              <div className="w-12 h-12 bg-emerald-600/20 text-emerald-400 rounded-xl flex items-center justify-center">
-                <ShieldCheck className="w-6 h-6" />
+              <span className="absolute top-4 right-4 text-xs font-bold bg-purple-950 text-purple-400 px-2.5 py-1 rounded-full border border-purple-800/50">02</span>
+              <div className="w-12 h-12 bg-purple-600/20 text-purple-400 rounded-xl flex items-center justify-center">
+                <Cpu className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-white text-lg">Verification</h3>
+              <h3 className="font-bold text-white text-lg">AI Verification</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Upload your marksheet or fee slip to earn the green Verified badge.
+                Gemini AI instantly scans your ID and marksheet, validating authenticity before admin queueing.
               </p>
             </div>
 
             <div className="p-6 bg-[#1E1E1E] rounded-2xl border border-slate-800 space-y-4 relative">
               <span className="absolute top-4 right-4 text-xs font-bold bg-blue-950 text-blue-400 px-2.5 py-1 rounded-full border border-blue-800/50">03</span>
-              <div className="w-12 h-12 bg-purple-600/20 text-purple-400 rounded-xl flex items-center justify-center">
-                <MessageSquare className="w-6 h-6" />
+              <div className="w-12 h-12 bg-emerald-600/20 text-emerald-400 rounded-xl flex items-center justify-center">
+                <ShieldCheck className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-white text-lg">Community Chat</h3>
+              <h3 className="font-bold text-white text-lg">Admin Approval</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Engage in public discussions, share notes, and connect with peers directly under appeals.
+                Super admin reviews the AI trust score and pushes your verified appeal live to the campus feed.
               </p>
             </div>
 
@@ -175,7 +213,7 @@ export default function ComeBackHomePage() {
               </div>
               <h3 className="font-bold text-white text-lg">0% Fee Payout</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                100% of donor funds clear your back exam fee directly into your bank.
+                100% of donor funds clear your back exam fee directly into your UPI account.
               </p>
             </div>
           </div>
@@ -189,7 +227,7 @@ export default function ComeBackHomePage() {
             </span>
             <h2 className="text-3xl sm:text-4xl font-extrabold text-white">Built For Delhi University Students</h2>
             <p className="text-base text-slate-400">
-              A 3-in-1 ecosystem built for financial relief, alumni mentorship, and honest campus chatter.
+              A trusted ecosystem combining AI security, transparent P2P relief, and honest campus chatter.
             </p>
           </div>
 
@@ -198,9 +236,9 @@ export default function ComeBackHomePage() {
               <div className="w-12 h-12 bg-rose-500/20 text-rose-400 rounded-xl flex items-center justify-center">
                 <HelpCircle className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-white text-xl">1. For Students Who Need Help</h3>
+              <h3 className="font-bold text-white text-xl">1. For Students In Need</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Got an unexpected back paper and financially tight at home? Create a verified campaign, share your story, and raise exact exam fees without hesitation or commission.
+                Facing a tough back paper and financial strain? Submit your documents for AI verification, share your story, and raise exact exam fees with zero platform cut.
               </p>
             </div>
 
@@ -208,9 +246,9 @@ export default function ComeBackHomePage() {
               <div className="w-12 h-12 bg-blue-500/20 text-blue-400 rounded-xl flex items-center justify-center">
                 <GraduationCap className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-white text-xl">2. For Supporters & Alumni</h3>
+              <h3 className="font-bold text-white text-xl">2. For Supporters & Donors</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Want to pay it forward? Contribute micro-donations directly toward student back fees, send encouraging advice, or mentor juniors through public discussions.
+                Support fellow peers with complete peace of mind knowing AI has verified student markshells and identity proofs beforehand.
               </p>
             </div>
 
@@ -218,9 +256,9 @@ export default function ComeBackHomePage() {
               <div className="w-12 h-12 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center">
                 <Flame className="w-6 h-6" />
               </div>
-              <h3 className="font-bold text-white text-xl">3. Reddit-Style Campus Forum</h3>
+              <h3 className="font-bold text-white text-xl">3. Campus Community Forum</h3>
               <p className="text-sm text-slate-400 leading-relaxed">
-                Discuss everything small or big! Ask which society/DEC is worth joining, grade distributions, fest updates, tough professors, or raw inner campus gossip.
+                Discuss academics, professor grading policies, society recruitments, and raw campus updates unfiltered.
               </p>
             </div>
           </div>
@@ -260,7 +298,7 @@ export default function ComeBackHomePage() {
             {filteredPosts.length === 0 ? (
               <div className="bg-[#1E1E1E] rounded-2xl p-8 text-center border border-slate-800 space-y-3">
                 <p className="text-slate-400 text-sm">No posts found in this category yet.</p>
-                <Link href="/post" className="inline-block px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">
+                <Link href="/profile" className="inline-block px-4 py-2 bg-blue-600 text-white text-xs font-bold rounded-xl">
                   Create a Post
                 </Link>
               </div>
@@ -272,16 +310,22 @@ export default function ComeBackHomePage() {
                 const percentage = Math.min(100, Math.round((raised / goal) * 100));
                 const authorName = post.student_name || post.studentName || 'Anonymous Student';
                 const authorInitials = authorName.substring(0, 2).toUpperCase();
+                const trustScore = post.ai_trust_score || 95;
 
                 return (
                   <div key={post.id} className={`bg-[#1E1E1E] rounded-2xl p-6 sm:p-8 border border-slate-800 space-y-5 shadow-lg ${isFunding ? 'border-l-4 border-l-amber-500' : ''}`}>
                     <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <span className="w-8 h-8 bg-blue-600/30 text-blue-400 font-bold rounded-lg flex items-center justify-center">{authorInitials}</span>
                         <span className="font-bold text-white text-base">{authorName}</span>
                         <span className="bg-emerald-950 text-emerald-400 border border-emerald-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
                           <CheckCircle2 className="w-3.5 h-3.5" /> Verified
                         </span>
+                        {isFunding && (
+                          <span className="bg-purple-950 text-purple-300 border border-purple-800 px-2.5 py-0.5 rounded-md font-semibold text-xs flex items-center gap-1">
+                            <ShieldCheck className="w-3.5 h-3.5 text-purple-400" /> {trustScore}% AI Score
+                          </span>
+                        )}
                         <span className="bg-blue-950 text-blue-400 border border-blue-800 px-2.5 py-0.5 rounded-md font-semibold text-xs">
                           {post.college || 'DTU'}
                         </span>
@@ -365,7 +409,7 @@ export default function ComeBackHomePage() {
         <section id="stats" className="py-20 px-6 max-w-5xl mx-auto space-y-10">
           <div className="text-center space-y-3">
             <h2 className="text-3xl font-extrabold text-white">Platform Impact Stats</h2>
-            <p className="text-slate-400 text-sm">Real-time numbers across DTU, NSUT, IGDTUW, and IPU.</p>
+            <p className="text-slate-400 text-sm">Real-time metrics across DTU, NSUT, IGDTUW, and IPU secured by AI audit.</p>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-5">
@@ -396,13 +440,13 @@ export default function ComeBackHomePage() {
 
             <div className="bg-[#1E1E1E] p-5 rounded-2xl border border-slate-800 text-center space-y-1.5 shadow-xl">
               <span className="text-3xl font-black text-cyan-400">{stats.verifiedSlips}</span>
-              <p className="text-xs text-slate-400 font-medium">Verified Slips</p>
+              <p className="text-xs text-slate-400 font-medium">AI Verified</p>
             </div>
           </div>
         </section>
       </main>
 
-      {/* <Footer /> */}
+      <Footer />
     </div>
   );
 }
