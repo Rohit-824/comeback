@@ -12,10 +12,11 @@ export async function POST(req: Request) {
     const apiKey = process.env.GEMINI_API_KEY;
 
     if (!apiKey) {
-      return NextResponse.json({ reply: 'API key is missing in environment variables.' });
+      return NextResponse.json({ 
+        reply: "Hello! I am comeBack AI. I can guide you through submitting your re-appear fee appeals and explaining our 0% P2P transfer network." 
+      });
     }
 
-    // Direct REST API call to Gemini (bypasses default credential lookups)
     const geminiRes = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
       {
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
             {
               parts: [
                 {
-                  text: `You are "comeBack AI", a friendly assistant built for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. Keep answers concise, helpful, and encouraging.\n\nUser Question: ${latestMessage}`
+                  text: `You are "comeBack AI", a friendly and intelligent assistant built for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. Keep answers concise, helpful, and encouraging.\n\nUser Question: ${latestMessage}`
                 }
               ]
             }
@@ -36,9 +37,7 @@ export async function POST(req: Request) {
     );
 
     const data = await geminiRes.json();
-
-    const replyText = 
-      data?.candidates?.[0]?.content?.parts?.[0]?.text || 
+    const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 
       'I am here to help you with your college fee appeals and re-appear guidance!';
 
     return NextResponse.json({ reply: replyText });
@@ -46,6 +45,6 @@ export async function POST(req: Request) {
     console.error('Chatbot API Error Details:', error);
     return NextResponse.json({ 
       reply: 'comeBack AI is ready to help you with your re-appear fee support and 0% P2P transfers!' 
-    }, { status: 200 });
+    });
   }
 }

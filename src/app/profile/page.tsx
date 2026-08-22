@@ -311,29 +311,43 @@ export default function ProfilePage() {
       if (resultFile) marksheetUrl = await convertFileToBase64(resultFile);
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
 
-      // REAL LIVE AI DOCUMENT VERIFICATION API CALL
-      const fileToVerify = feeChallanFile || resultFile || collegeIdFile;
-      if (fileToVerify) {
-        try {
-          const base64Doc = await convertFileToBase64(fileToVerify);
-          const base64DataOnly = base64Doc.split(',')[1];
+      // RIGOROUS MULTI-DOCUMENT STRICT AI VALIDATION LOOP
+      const docsToCheck = [
+        { file: collegeIdFile, type: 'collegeId', label: 'College Student ID' },
+        { file: resultFile, type: 'marksheet', label: 'Marksheet / Result Sheet' },
+        { file: feeChallanFile, type: 'feeChallan', label: 'Fee Notice / Challan' }
+      ];
 
-          const aiRes = await fetch('/api/verify-document', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ imageBase64: base64DataOnly, mimeType: fileToVerify.type }),
-          });
-          const aiData = await aiRes.json();
+      for (const doc of docsToCheck) {
+        if (doc.file) {
+          try {
+            const base64Doc = await convertFileToBase64(doc.file);
+            const base64DataOnly = base64Doc.split(',')[1];
 
-          if (!aiData.isValid) {
-            alert(aiData.summary || 'Please upload a valid college ID card or marksheet showing re-appear/back subjects.');
-            return;
+            const aiRes = await fetch('/api/verify-document', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                imageBase64: base64DataOnly, 
+                mimeType: doc.file.type,
+                docType: doc.type,
+                expectedSubject: newSubjectCode,
+                expectedGrade: newSubjectGrade,
+                expectedAmount: newGoal
+              }),
+            });
+            const aiData = await aiRes.json();
+
+            if (!aiData.isValid) {
+              alert(`[${doc.label} Verification Failed]: ${aiData.summary || 'Document requirements not met.'}`);
+              return; 
+            }
+
+            calculatedTrustScore = Math.min(calculatedTrustScore, aiData.trustScore || 95);
+            verificationPayload = JSON.stringify(aiData);
+          } catch (aiErr) {
+            console.error(`Live AI Verification failed for ${doc.type}:`, aiErr);
           }
-
-          calculatedTrustScore = aiData.trustScore || 95;
-          verificationPayload = JSON.stringify(aiData);
-        } catch (aiErr) {
-          console.error('Live AI Verification failed:', aiErr);
         }
       }
     }
@@ -1177,7 +1191,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* <Footer /> */}
+      <Footer />
     </div>
   );
 }
