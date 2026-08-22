@@ -53,7 +53,6 @@ interface UserPost {
   upiId?: string;
   qrCodeUrl?: string;
   aiTrustScore?: number;
-  aiVerificationDetails?: string;
 }
 
 interface UserDonation {
@@ -148,8 +147,7 @@ export default function ProfilePage() {
           mediaUrl: p.media_url,
           upiId: p.upi_id || 'Not Provided',
           qrCodeUrl: p.qr_code_url || '',
-          aiTrustScore: p.ai_trust_score || 99,
-          aiVerificationDetails: p.ai_verification_details
+          aiTrustScore: 99
         }));
         setUserPosts(mappedPosts);
       }
@@ -310,6 +308,7 @@ export default function ProfilePage() {
       if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
     }
 
+    // Removed unmigrated ai_trust_score & ai_verification_details columns to prevent schema errors
     const { data, error } = await supabase.from('posts').insert([
       {
         title: newTitle,
@@ -330,13 +329,6 @@ export default function ProfilePage() {
         college_id_url: collegeIdUrl || null,
         marksheet_url: marksheetUrl || null,
         fee_challan_url: feeChallanUrl || null,
-        ai_trust_score: 99,
-        ai_verification_details: JSON.stringify({
-          isValid: true,
-          extractedName: currentUser?.full_name || 'Student',
-          extractedAmount: newGoal,
-          summary: 'Document automatically scanned and verified with high confidence.'
-        })
       }
     ]).select();
 
@@ -362,8 +354,7 @@ export default function ProfilePage() {
         mediaUrl: data[0].media_url,
         upiId: data[0].upi_id,
         qrCodeUrl: data[0].qr_code_url,
-        aiTrustScore: 99,
-        aiVerificationDetails: data[0].ai_verification_details
+        aiTrustScore: 99
       };
       setUserPosts([newCreatedPost, ...userPosts]);
 
