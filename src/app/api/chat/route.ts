@@ -1,7 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(req: Request) {
   try {
@@ -11,34 +8,44 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No messages provided' }, { status: 400 });
     }
 
-    // Extract the latest message correctly from frontend state
     const latestMessage = messages[messages.length - 1]?.content || 'Hello';
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    // Format full chat history so Gemini knows the context
-    const historyPrompt = messages.map((m: any) => 
-      `${m.role === 'user' ? 'Student' : 'comeBack AI'}: ${m.content}`
-    ).join('\n');
+    if (!apiKey) {
+      return NextResponse.json({ reply: 'API key is missing in environment variables.' });
+    }
 
-    const prompt = `You are "comeBack AI", a friendly and intelligent assistant built for engineering students in Delhi (DTU, DU, NSUT). 
-    Your core purpose is to help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. 
-    Keep your answers helpful, conversational, and direct.
+    // Direct REST API call to Gemini (bypasses default credential lookups)
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are "comeBack AI", a friendly assistant built for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. Keep answers concise, helpful, and encouraging.\n\nUser Question: ${latestMessage}`
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
 
-Here is the conversation history:
-${historyPrompt}
-comeBack AI:`;
+    const data = await geminiRes.json();
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: prompt,
-    });
-
-    const replyText = response.text || 'I am here to help you with your college fee appeals!';
+    const replyText = 
+      data?.candidates?.[0]?.content?.parts?.[0]?.text || 
+      'I am here to help you with your college fee appeals and re-appear guidance!';
 
     return NextResponse.json({ reply: replyText });
   } catch (error: any) {
     console.error('Chatbot API Error Details:', error);
     return NextResponse.json({ 
-      reply: `comeBack AI is here to help with your re-appear fee support and 0% P2P UPI transfers. (Error: ${error.message})` 
+      reply: 'comeBack AI is ready to help you with your re-appear fee support and 0% P2P transfers!' 
     }, { status: 200 });
   }
 }
