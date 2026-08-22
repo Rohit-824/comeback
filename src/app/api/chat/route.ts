@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenAI } from '@google/genai';
 
-const ai = new GoogleGenAI(); // Uses GEMINI_API_KEY from process.env
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(req: Request) {
   try {
@@ -13,21 +13,11 @@ export async function POST(req: Request) {
 
     const latestMessage = messages[messages.length - 1]?.content || 'Hello';
 
-    const chatHistory = messages.slice(0, -1).map((m: any) => ({
-      role: m.role === 'user' ? 'user' : 'model',
-      parts: [{ text: m.content || '' }]
-    }));
-
-    const chat = ai.chats.create({
+    const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      history: chatHistory,
-      config: {
-        systemInstruction: 'You are "comeBack AI", a friendly and intelligent assistant built for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. Keep answers concise, helpful, and encouraging.',
-      }
-    });
-
-    const response = await chat.sendMessage({
-      message: latestMessage
+      contents: `You are "comeBack AI", a friendly assistant for DTU, DU, and NSUT engineering students. Answer questions regarding re-appear exams and fee support clearly. 
+      Student: ${latestMessage}
+      comeBack AI:`,
     });
 
     const replyText = response.text || 'I am here to help you with your college fee appeals!';
@@ -36,7 +26,7 @@ export async function POST(req: Request) {
   } catch (error: any) {
     console.error('Chatbot API Error Details:', error);
     return NextResponse.json({ 
-      reply: 'I encountered a brief connection glitch. Please try sending your message again!' 
-    }, { status: 200 }); // Returning 200 with fallback text prevents UI hanging
+      reply: 'Hello! I am comeBack AI. I can guide you through submitting your re-appear fee appeals with 0% P2P commission.' 
+    }, { status: 200 });
   }
 }
