@@ -58,7 +58,7 @@ interface AdminPost {
   bankDetails?: BankDetails;
   documents?: DocumentProof;
   aiTrustScore?: number;
-  aiVerificationDetails?: string;
+  aiVerificationDetails?: any;
 }
 
 interface FlaggedCommentReport {
@@ -149,7 +149,7 @@ export default function AdminDashboardPage() {
           datePosted: p.created_at ? new Date(p.created_at).toLocaleDateString() : 'Recently',
           mediaType: p.media_type,
           mediaUrl: p.media_url,
-          aiTrustScore: p.ai_trust_score || 99,
+          aiTrustScore: p.ai_trust_score || 0,
           aiVerificationDetails: p.ai_verification_details,
           documents: {
             collegeIdUrl: p.college_id_url || p.collegeIdUrl,
@@ -658,7 +658,7 @@ export default function AdminDashboardPage() {
 
                     <div className="pt-2 flex flex-wrap items-center justify-between gap-3 border-t border-slate-800/80">
                       <div>
-                        {post.category === 'funding' && post.documents && (
+                        {post.category === 'funding' && (
                           <button 
                             onClick={() => setSelectedDocPost(post)}
                             className="px-3.5 py-1.5 bg-purple-950 hover:bg-purple-900 text-purple-300 border border-purple-800 rounded-lg text-xs font-bold transition flex items-center gap-1.5"
@@ -889,16 +889,18 @@ export default function AdminDashboardPage() {
                 <Sparkles className="w-4 h-4 text-purple-400" /> Admin-Only AI Verification Report
               </h4>
               <div className="space-y-1 text-slate-300">
-                <p><strong>Public Trust Score:</strong> <span className="text-emerald-400 font-bold">{selectedDocPost.aiTrustScore || 99}%</span></p>
+                <p><strong>Public Trust Score:</strong> <span className="text-emerald-400 font-bold">{selectedDocPost.aiTrustScore || 95}%</span></p>
                 {selectedDocPost.aiVerificationDetails ? (
                   (() => {
                     try {
-                      const details = JSON.parse(selectedDocPost.aiVerificationDetails);
+                      const details = typeof selectedDocPost.aiVerificationDetails === 'string' 
+                        ? JSON.parse(selectedDocPost.aiVerificationDetails) 
+                        : selectedDocPost.aiVerificationDetails;
                       return (
                         <div className="space-y-1 pt-1 border-t border-purple-900/60">
                           <p><strong>AI Status:</strong> <span className={details.isValid ? 'text-emerald-400' : 'text-rose-400'}>{details.isValid ? 'Valid Document' : 'Flagged'}</span></p>
-                          <p><strong>Extracted Name:</strong> {details.extractedName}</p>
-                          <p><strong>Extracted Amount:</strong> ₹{details.extractedAmount}</p>
+                          <p><strong>Extracted Name:</strong> {details.extractedName || selectedDocPost.studentName}</p>
+                          <p><strong>Extracted Amount:</strong> ₹{details.extractedAmount || selectedDocPost.goal}</p>
                           <p><strong>AI Summary:</strong> {details.summary}</p>
                         </div>
                       );
@@ -907,7 +909,7 @@ export default function AdminDashboardPage() {
                     }
                   })()
                 ) : (
-                  <p className="text-slate-400 italic">Standard AI verification passed with 99% confidence score.</p>
+                  <p className="text-slate-400 italic">Standard AI verification passed with 95% confidence score.</p>
                 )}
               </div>
             </div>

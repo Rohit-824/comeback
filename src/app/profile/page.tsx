@@ -325,12 +325,13 @@ export default function ProfilePage() {
           });
           const aiData = await aiRes.json();
 
-          if (aiData.result) {
-            let cleaned = aiData.result.replace(/```json/g, '').replace(/```/g, '').trim();
-            const parsed = JSON.parse(cleaned);
-            calculatedTrustScore = parsed.trustScore || (parsed.isValid ? 96 : 42);
-            verificationPayload = JSON.stringify(parsed);
+          if (!aiData.isValid) {
+            alert(aiData.summary || 'Please upload a valid college ID card or marksheet showing re-appear/back subjects.');
+            return;
           }
+
+          calculatedTrustScore = aiData.trustScore || 95;
+          verificationPayload = JSON.stringify(aiData);
         } catch (aiErr) {
           console.error('Live AI Verification failed:', aiErr);
         }
@@ -1176,6 +1177,7 @@ export default function ProfilePage() {
         </div>
       )}
 
+      {/* <Footer /> */}
     </div>
   );
 }
