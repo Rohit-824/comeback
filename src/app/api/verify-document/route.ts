@@ -32,7 +32,10 @@ export async function POST(req: Request) {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          // Gemini API keys are NOT OAuth tokens, so they can't go in
+          // an "Authorization: Bearer ..." header. Use the dedicated
+          // x-goog-api-key header instead (or a ?key= query param).
+          'x-goog-api-key': apiKey
         },
         body: JSON.stringify({
           contents: [
@@ -64,7 +67,7 @@ export async function POST(req: Request) {
     );
 
     const data = await geminiRes.json();
-    
+
     if (data.error) {
       return NextResponse.json({ isValid: false, trustScore: 0, summary: `Gemini API Error: ${data.error.message}` });
     }
@@ -72,7 +75,18 @@ export async function POST(req: Request) {
     const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
-    return NextResponse.json(JSON.parse(cleanedText));
+    let parsed;
+    try {
+      parsed = JSON.parse(cleanedText);
+    } catch (parseErr) {
+      return NextResponse.json({
+        isValid: false,
+        trustScore: 0,
+        summary: 'AI returned a non-JSON response. Please try again.'
+      });
+    }
+
+    return NextResponse.json(parsed);
   } catch (error: any) {
     console.error('AI Verification Error:', error);
     return NextResponse.json({ isValid: false, trustScore: 0, summary: `AI validation error: ${error.message}` });

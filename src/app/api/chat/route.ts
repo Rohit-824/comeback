@@ -15,14 +15,16 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: 'GEMINI_API_KEY is missing in .env.local' });
     }
 
-    // Pass the AQ. key as a Bearer token instead of a URL query param
+    // Gemini API keys are NOT OAuth access tokens, so "Authorization: Bearer <key>"
+    // is rejected with "invalid authentication credentials". Use the dedicated
+    // x-goog-api-key header instead (or a ?key= query param).
     const geminiRes = await fetch(
       'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`
+          'x-goog-api-key': apiKey
         },
         body: JSON.stringify({
           contents: [
@@ -39,7 +41,7 @@ export async function POST(req: Request) {
     );
 
     const data = await geminiRes.json();
-    
+
     if (data.error) {
       return NextResponse.json({ reply: `Gemini Error: ${data.error.message}` });
     }
