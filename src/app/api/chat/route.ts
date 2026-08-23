@@ -9,7 +9,7 @@ export async function POST(req: Request) {
     }
 
     const latestMessage = messages[messages.length - 1]?.content || 'Hello';
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6KZ1KhWxPeuhBjb8f1Mi5JB7BOFMw6PblVuZauDSIFp7w';
 
     if (!apiKey) {
       return NextResponse.json({ reply: 'GEMINI_API_KEY is missing in .env.local' });

@@ -8,7 +8,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ isValid: false, summary: 'No document image provided.' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || 'AQ.Ab8RN6KZ1KhWxPeuhBjb8f1Mi5JB7BOFMw6PblVuZauDSIFp7w';
     if (!apiKey) {
       return NextResponse.json({ 
         isValid: false, 
