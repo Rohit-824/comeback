@@ -1,7 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(req: Request) {
   try {
@@ -9,6 +6,15 @@ export async function POST(req: Request) {
 
     if (!imageBase64) {
       return NextResponse.json({ isValid: false, summary: 'No document image provided.' }, { status: 400 });
+    }
+
+    const apiKey = process.env.GEMINI_API_KEY;
+    if (!apiKey) {
+      return NextResponse.json({ 
+        isValid: false, 
+        trustScore: 0, 
+        summary: 'Server Error: GEMINI_API_KEY is missing in .env.local.' 
+      });
     }
 
     let validationInstructions = 'Check if this image is a valid student document.';
@@ -20,36 +26,50 @@ export async function POST(req: Request) {
       validationInstructions = `Check if this is an official fee challan for amount ₹${expectedAmount}.`;
     }
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: [
-        {
-          role: 'user',
-          parts: [
+    const geminiRes = await fetch(
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        },
+        body: JSON.stringify({
+          contents: [
             {
-              inlineData: {
-                data: imageBase64,
-                mimeType: mimeType || 'image/jpeg',
-              },
-            },
-            {
-              text: `${validationInstructions} 
-              
-              Return ONLY a clean JSON object (no markdown, no backticks):
-              {
-                "isValid": boolean,
-                "trustScore": number,
-                "extractedName": string,
-                "extractedAmount": number,
-                "summary": string
-              }`
+              parts: [
+                {
+                  inlineData: {
+                    data: imageBase64,
+                    mimeType: mimeType || 'image/jpeg'
+                  }
+                },
+                {
+                  text: `${validationInstructions} 
+                  
+                  Return ONLY a clean JSON object (no markdown, no backticks):
+                  {
+                    "isValid": boolean,
+                    "trustScore": number,
+                    "extractedName": string,
+                    "extractedAmount": number,
+                    "summary": string
+                  }`
+                }
+              ]
             }
           ]
-        }
-      ],
-    });
+        })
+      }
+    );
 
-    const rawText = response.text || '{}';
+    const data = await geminiRes.json();
+    
+    if (data.error) {
+      return NextResponse.json({ isValid: false, trustScore: 0, summary: `Gemini API Error: ${data.error.message}` });
+    }
+
+    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
     const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
 
     return NextResponse.json(JSON.parse(cleanedText));
