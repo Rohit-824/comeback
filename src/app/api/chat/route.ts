@@ -1,7 +1,4 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI } from '@google/genai';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 export async function POST(req: Request) {
   try {
@@ -12,19 +9,43 @@ export async function POST(req: Request) {
     }
 
     const latestMessage = messages[messages.length - 1]?.content || 'Hello';
+    const apiKey = process.env.GEMINI_API_KEY;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `You are "comeBack AI", a friendly and intelligent assistant for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes, guide them on how to submit verified fee appeals, and explain how 0% commission direct P2P UPI funding works. Keep answers concise, helpful, and encouraging.\n\nUser Question: ${latestMessage}`,
-    });
+    if (!apiKey) {
+      return NextResponse.json({ reply: 'GEMINI_API_KEY is missing in .env.local' });
+    }
 
-    const replyText = response.text || 'I am here to help you with your college fee appeals and re-appear guidance!';
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `You are "comeBack AI", a friendly assistant for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes and explain 0% commission direct P2P UPI funding.\n\nUser Question: ${latestMessage}`
+                }
+              ]
+            }
+          ]
+        })
+      }
+    );
+
+    const data = await geminiRes.json();
+    
+    if (data.error) {
+      return NextResponse.json({ reply: `Gemini Error: ${data.error.message}` });
+    }
+
+    const replyText = data?.candidates?.[0]?.content?.parts?.[0]?.text || 
+      'I am here to help you with your college fee appeals!';
 
     return NextResponse.json({ reply: replyText });
   } catch (error: any) {
     console.error('Chatbot API Error Details:', error);
-    return NextResponse.json({ 
-      reply: `comeBack AI is ready to help! (Error: ${error.message || 'Connection glitch'})` 
-    });
+    return NextResponse.json({ reply: `Error: ${error.message}` });
   }
 }
