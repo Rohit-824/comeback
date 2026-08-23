@@ -71,6 +71,10 @@ export async function POST(req: Request) {
 
     const data = await geminiRes.json();
 
+    // TEMP DEBUG: log the full raw response so we can see the exact shape
+    // Gemini is actually returning. Remove this once parsing is confirmed correct.
+    console.log('RAW GEMINI RESPONSE:', JSON.stringify(data, null, 2));
+
     if (data.error) {
       return NextResponse.json({ isValid: false, trustScore: 0, summary: `Gemini API Error: ${data.error.message}` });
     }
@@ -78,7 +82,21 @@ export async function POST(req: Request) {
     const steps = data?.steps || [];
     const modelStep = steps.find((s: any) => s.type === 'model_output');
     const textBlock = modelStep?.content?.find((c: any) => c.type === 'text');
-    const rawText = textBlock?.text || '{}';
+    let rawText = textBlock?.text;
+
+    // Fallback in case the shape differs from what's documented
+    if (!rawText && data?.output_text) {
+      rawText = data.output_text;
+    }
+
+    if (!rawText) {
+      console.warn('Could not extract text from response shape above.');
+      return NextResponse.json({
+        isValid: false,
+        trustScore: 0,
+        summary: 'Could not read AI response. Check server logs for raw response shape.'
+      });
+    }
 
     let parsed;
     try {
@@ -87,7 +105,7 @@ export async function POST(req: Request) {
       return NextResponse.json({
         isValid: false,
         trustScore: 0,
-        summary: 'AI returned a non-JSON response. Please try again.'
+        summary: `AI returned a non-JSON response: ${rawText.slice(0, 200)}`
       });
     }
 

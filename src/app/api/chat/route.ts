@@ -37,18 +37,32 @@ export async function POST(req: Request) {
 
     const data = await geminiRes.json();
 
+    // TEMP DEBUG: log the full raw response so we can see the exact shape
+    // Gemini is actually returning. Remove this once parsing is confirmed correct.
+    console.log('RAW GEMINI RESPONSE:', JSON.stringify(data, null, 2));
+
     if (data.error) {
       return NextResponse.json({ reply: `Gemini Error: ${data.error.message}` });
     }
 
     // Interactions API responses put model text inside steps[].content[]
     // (SDKs surface this as `output_text`; the raw REST response requires walking steps).
-    let replyText = 'I am here to help you with your college fee appeals!';
+    let replyText: string | null = null;
     const steps = data?.steps || [];
     const modelStep = steps.find((s: any) => s.type === 'model_output');
     const textBlock = modelStep?.content?.find((c: any) => c.type === 'text');
     if (textBlock?.text) {
       replyText = textBlock.text;
+    }
+
+    // Fallbacks in case the shape differs from what's documented
+    if (!replyText && data?.output_text) {
+      replyText = data.output_text;
+    }
+
+    if (!replyText) {
+      console.warn('Could not extract reply text from response shape above.');
+      replyText = 'I am here to help you with your college fee appeals!';
     }
 
     return NextResponse.json({ reply: replyText });
