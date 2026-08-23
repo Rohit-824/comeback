@@ -71,10 +71,6 @@ export async function POST(req: Request) {
 
     const data = await geminiRes.json();
 
-    // TEMP DEBUG: log the full raw response so we can see the exact shape
-    // Gemini is actually returning. Remove this once parsing is confirmed correct.
-    console.log('RAW GEMINI RESPONSE:', JSON.stringify(data, null, 2));
-
     if (data.error) {
       return NextResponse.json({ isValid: false, trustScore: 0, summary: `Gemini API Error: ${data.error.message}` });
     }
@@ -90,11 +86,14 @@ export async function POST(req: Request) {
     }
 
     if (!rawText) {
-      console.warn('Could not extract text from response shape above.');
+      // TEMP DEBUG: return the raw shape in the response itself so it's visible
+      // in the browser Network tab (Vercel server logs are harder to reach quickly).
+      // Remove _debug once parsing is confirmed working.
       return NextResponse.json({
         isValid: false,
         trustScore: 0,
-        summary: 'Could not read AI response. Check server logs for raw response shape.'
+        summary: 'Could not read AI response.',
+        _debug: data
       });
     }
 
