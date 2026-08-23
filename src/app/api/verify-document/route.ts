@@ -10,10 +10,10 @@ export async function POST(req: Request) {
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      return NextResponse.json({ 
-        isValid: false, 
-        trustScore: 0, 
-        summary: 'Server Error: GEMINI_API_KEY is missing in .env.local.' 
+      return NextResponse.json({
+        isValid: false,
+        trustScore: 0,
+        summary: 'Server Error: GEMINI_API_KEY is missing in .env.local.'
       });
     }
 
@@ -26,42 +26,45 @@ export async function POST(req: Request) {
       validationInstructions = `Check if this is an official fee challan for amount ₹${expectedAmount}.`;
     }
 
+    // Using the Interactions API instead of the legacy :generateContent endpoint.
+    // The legacy endpoint currently rejects new "auth" (AQ.) API keys with a 401
+    // ACCESS_TOKEN_TYPE_UNSUPPORTED error even when using x-goog-api-key correctly.
+    // The Interactions API is unaffected and is Google's recommended endpoint going forward.
     const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',
+      'https://generativelanguage.googleapis.com/v1beta/interactions',
       {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          // Gemini API keys are NOT OAuth tokens, so they can't go in
-          // an "Authorization: Bearer ..." header. Use the dedicated
-          // x-goog-api-key header instead (or a ?key= query param).
           'x-goog-api-key': apiKey
         },
         body: JSON.stringify({
-          contents: [
+          model: 'gemini-2.5-flash',
+          input: [
+            { type: 'text', text: validationInstructions },
             {
-              parts: [
-                {
-                  inlineData: {
-                    data: imageBase64,
-                    mimeType: mimeType || 'image/jpeg'
-                  }
-                },
-                {
-                  text: `${validationInstructions} 
-                  
-                  Return ONLY a clean JSON object (no markdown, no backticks):
-                  {
-                    "isValid": boolean,
-                    "trustScore": number,
-                    "extractedName": string,
-                    "extractedAmount": number,
-                    "summary": string
-                  }`
-                }
-              ]
+              type: 'image',
+              data: imageBase64,
+              mime_type: mimeType || 'image/jpeg'
             }
-          ]
+          ],
+          // Structured output: guarantees valid JSON back, no more manual
+          // backtick-stripping / JSON.parse gambling.
+          response_format: {
+            type: 'text',
+            mime_type: 'application/json',
+            schema: {
+              type: 'object',
+              properties: {
+                isValid: { type: 'boolean' },
+                trustScore: { type: 'number' },
+                extractedName: { type: 'string' },
+                extractedAmount: { type: 'number' },
+                summary: { type: 'string' }
+              },
+              required: ['isValid', 'trustScore', 'summary']
+            }
+          }
         })
       }
     );
@@ -72,12 +75,14 @@ export async function POST(req: Request) {
       return NextResponse.json({ isValid: false, trustScore: 0, summary: `Gemini API Error: ${data.error.message}` });
     }
 
-    const rawText = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
-    const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const steps = data?.steps || [];
+    const modelStep = steps.find((s: any) => s.type === 'model_output');
+    const textBlock = modelStep?.content?.find((c: any) => c.type === 'text');
+    const rawText = textBlock?.text || '{}';
 
     let parsed;
     try {
-      parsed = JSON.parse(cleanedText);
+      parsed = JSON.parse(rawText);
     } catch (parseErr) {
       return NextResponse.json({
         isValid: false,
