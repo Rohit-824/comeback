@@ -47,6 +47,7 @@ Return ONLY a clean JSON object (no markdown, no backticks, no extra text):
   "summary": string
 }
 
+For "trustScore": always a whole number integer from 0 to 100 (e.g. 95, not 0.95). Never a decimal or fraction.
 For "summary": write one short, clear sentence a student will understand, in plain language.
 - If valid: confirm what you saw, e.g. "This looks like a valid college ID with a photo and roll number."
 - If invalid: state exactly what's wrong, e.g. "This does not look like a valid college ID — no roll number or college logo is visible." or "This marksheet shows a different subject than expected."
@@ -89,6 +90,19 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
 
         try {
           const parsed = JSON.parse(cleanedText);
+
+          // Defensive normalization: some models return trustScore as a 0-1
+          // decimal instead of a 0-100 integer, which breaks integer DB columns.
+          if (typeof parsed.trustScore === 'number') {
+            let score = parsed.trustScore;
+            if (score > 0 && score <= 1) {
+              score = score * 100;
+            }
+            parsed.trustScore = Math.round(Math.max(0, Math.min(100, score)));
+          } else {
+            parsed.trustScore = 0;
+          }
+
           return NextResponse.json(parsed);
         } catch (parseErr) {
           lastError = new Error(`Non-JSON response: ${cleanedText.slice(0, 200)}`);

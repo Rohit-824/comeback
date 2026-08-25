@@ -376,6 +376,11 @@ export default function ProfilePage() {
         }
       }
 
+      // Final safety net: ensure trustScore is always a clean 0-100 integer
+      // before it hits Supabase's integer column, regardless of what any
+      // upstream AI model or fallback path produced.
+      calculatedTrustScore = Math.round(Math.max(0, Math.min(100, Number(calculatedTrustScore) || 0)));
+
       setSubmitStatusText('Publishing your appeal...');
 
       const { data, error } = await supabase.from('posts').insert([
@@ -1078,7 +1083,7 @@ export default function ProfilePage() {
                     </div>
 
                     <p className="text-[10px] text-slate-500 pt-1">
-                      Note: PDF uploads skip automatic AI checking and are reviewed manually by an admin instead. For instant AI verification, upload a photo (JPG/PNG) if possible.
+                      Note: Only photos (JPG/PNG) are allowed for instant AI verification. PDF files are not supported and will be sent for manual admin review instead — please upload a clear photo of your document.
                     </p>
                   </div>
 
