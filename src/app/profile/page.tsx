@@ -28,7 +28,8 @@ import {
   Bookmark,
   Clock,
   XCircle,
-  Sparkles
+  Sparkles,
+  Loader2
 } from 'lucide-react';
 
 interface UserPost {
@@ -105,6 +106,8 @@ export default function ProfilePage() {
 
   const [activeTab, setActiveTab] = useState<'posts' | 'saved' | 'donations' | 'activity'>('posts');
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitStatusText, setSubmitStatusText] = useState('Submit Appeal for Verification');
 
   const [userPosts, setUserPosts] = useState<UserPost[]>([]);
   const [savedPostsList, setSavedPostsList] = useState<UserPost[]>([]);
@@ -273,168 +276,198 @@ export default function ProfilePage() {
     const isFunding = newCategory === 'funding';
     const activeEmail = currentUser?.email || user?.email || 'student@dtu.ac.in';
 
-    let mediaUrl: string | undefined = undefined;
-    let mediaType: 'image' | 'video' | undefined = undefined;
+    setIsSubmitting(true);
+    setSubmitStatusText('Uploading files...');
 
-    if (mediaFile) {
-      try {
-        mediaUrl = await convertFileToBase64(mediaFile);
-        mediaType = mediaFile.type.startsWith('video') ? 'video' : 'image';
-      } catch (err) {
-        console.error('Error converting file to Base64', err);
+    try {
+      let mediaUrl: string | undefined = undefined;
+      let mediaType: 'image' | 'video' | undefined = undefined;
+
+      if (mediaFile) {
+        try {
+          mediaUrl = await convertFileToBase64(mediaFile);
+          mediaType = mediaFile.type.startsWith('video') ? 'video' : 'image';
+        } catch (err) {
+          console.error('Error converting file to Base64', err);
+        }
       }
-    }
 
-    let qrCodeUrl: string | undefined = undefined;
-    if (isFunding && qrCodeFile) {
-      try {
-        qrCodeUrl = await convertFileToBase64(qrCodeFile);
-      } catch (err) {
-        console.error('Error converting QR code to Base64', err);
+      let qrCodeUrl: string | undefined = undefined;
+      if (isFunding && qrCodeFile) {
+        try {
+          qrCodeUrl = await convertFileToBase64(qrCodeFile);
+        } catch (err) {
+          console.error('Error converting QR code to Base64', err);
+        }
       }
-    }
 
-    let collegeIdUrl: string | undefined = undefined;
-    let marksheetUrl: string | undefined = undefined;
-    let feeChallanUrl: string | undefined = undefined;
+      let collegeIdUrl: string | undefined = undefined;
+      let marksheetUrl: string | undefined = undefined;
+      let feeChallanUrl: string | undefined = undefined;
 
-    let calculatedTrustScore = 95;
-    let verificationPayload = JSON.stringify({
-      isValid: true,
-      extractedName: currentUser?.full_name || 'Student',
-      extractedAmount: newGoal,
-      summary: 'Document automatically scanned and verified.'
-    });
+      let calculatedTrustScore = 95;
+      let verificationPayload = JSON.stringify({
+        isValid: true,
+        extractedName: currentUser?.full_name || 'Student',
+        extractedAmount: newGoal,
+        summary: 'Document automatically scanned and verified.'
+      });
+      let needsManualReview = false;
 
-    if (isFunding) {
-      if (collegeIdFile) collegeIdUrl = await convertFileToBase64(collegeIdFile);
-      if (resultFile) marksheetUrl = await convertFileToBase64(resultFile);
-      if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
+      if (isFunding) {
+        if (collegeIdFile) collegeIdUrl = await convertFileToBase64(collegeIdFile);
+        if (resultFile) marksheetUrl = await convertFileToBase64(resultFile);
+        if (feeChallanFile) feeChallanUrl = await convertFileToBase64(feeChallanFile);
 
-      // RIGOROUS MULTI-DOCUMENT STRICT AI VALIDATION LOOP
-      const docsToCheck = [
-        { file: collegeIdFile, type: 'collegeId', label: 'College Student ID' },
-        { file: resultFile, type: 'marksheet', label: 'Marksheet / Result Sheet' },
-        { file: feeChallanFile, type: 'feeChallan', label: 'Fee Notice / Challan' }
-      ];
+        // RIGOROUS MULTI-DOCUMENT STRICT AI VALIDATION LOOP
+        const docsToCheck = [
+          { file: collegeIdFile, type: 'collegeId', label: 'College Student ID' },
+          { file: resultFile, type: 'marksheet', label: 'Marksheet / Result Sheet' },
+          { file: feeChallanFile, type: 'feeChallan', label: 'Fee Notice / Challan' }
+        ];
 
-      for (const doc of docsToCheck) {
-        if (doc.file) {
-          try {
-            const base64Doc = await convertFileToBase64(doc.file);
-            const base64DataOnly = base64Doc.split(',')[1];
+        for (const doc of docsToCheck) {
+          if (doc.file) {
+            // AI vision models can only read actual images (jpg/png/webp), not PDFs.
+            // Sending a PDF through the image pipeline causes every model to fail.
+            // Instead, skip AI auto-checking for PDFs and flag them for manual
+            // admin review, so the appeal isn't blocked by an unsupported format.
+            const isPdf = doc.file.type === 'application/pdf';
 
-            const aiRes = await fetch('/api/verify-document', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                imageBase64: base64DataOnly, 
-                mimeType: doc.file.type,
-                docType: doc.type,
-                expectedSubject: newSubjectCode,
-                expectedGrade: newSubjectGrade,
-                expectedAmount: newGoal
-              }),
-            });
-            const aiData = await aiRes.json();
-
-            if (!aiData.isValid) {
-              alert(`[${doc.label} Verification Failed]: ${aiData.summary || 'Document requirements not met.'}`);
-              return; 
+            if (isPdf) {
+              needsManualReview = true;
+              continue;
             }
 
-            calculatedTrustScore = Math.min(calculatedTrustScore, aiData.trustScore || 95);
-            verificationPayload = JSON.stringify(aiData);
-          } catch (aiErr) {
-            console.error(`Live AI Verification failed for ${doc.type}:`, aiErr);
+            setSubmitStatusText(`Checking your ${doc.label}...`);
+
+            try {
+              const base64Doc = await convertFileToBase64(doc.file);
+              const base64DataOnly = base64Doc.split(',')[1];
+
+              const aiRes = await fetch('/api/verify-document', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                  imageBase64: base64DataOnly, 
+                  mimeType: doc.file.type,
+                  docType: doc.type,
+                  expectedSubject: newSubjectCode,
+                  expectedGrade: newSubjectGrade,
+                  expectedAmount: newGoal
+                }),
+              });
+              const aiData = await aiRes.json();
+
+              if (!aiData.isValid) {
+                alert(`[${doc.label} Verification Failed]: ${aiData.summary || 'Document requirements not met.'}`);
+                setIsSubmitting(false);
+                setSubmitStatusText('Submit Appeal for Verification');
+                return;
+              }
+
+              calculatedTrustScore = Math.min(calculatedTrustScore, aiData.trustScore || 95);
+              verificationPayload = JSON.stringify(aiData);
+            } catch (aiErr) {
+              console.error(`Live AI Verification failed for ${doc.type}:`, aiErr);
+              needsManualReview = true;
+            }
           }
         }
       }
-    }
 
-    const { data, error } = await supabase.from('posts').insert([
-      {
-        title: newTitle,
-        story: newStory,
-        category: isFunding ? 'funding' : 'discussion',
-        subject_code: isFunding ? newSubjectCode : newDiscussionTag,
-        student_name: currentUser?.full_name || 'Student Account',
-        student_email: activeEmail,
-        college: currentUser?.college || 'DTU',
-        subject_grade: isFunding ? newSubjectGrade : null,
-        goal: isFunding ? newGoal : 0,
-        raised: 0,
-        status: isFunding ? 'pending_verification' : 'active',
-        media_type: mediaType || null,
-        media_url: mediaUrl || null,
-        upi_id: isFunding ? upiId.trim() : null,
-        qr_code_url: isFunding ? qrCodeUrl || null : null,
-        college_id_url: collegeIdUrl || null,
-        marksheet_url: marksheetUrl || null,
-        fee_challan_url: feeChallanUrl || null,
-        ai_trust_score: calculatedTrustScore,
-        ai_verification_details: verificationPayload,
+      setSubmitStatusText('Publishing your appeal...');
+
+      const { data, error } = await supabase.from('posts').insert([
+        {
+          title: newTitle,
+          story: newStory,
+          category: isFunding ? 'funding' : 'discussion',
+          subject_code: isFunding ? newSubjectCode : newDiscussionTag,
+          student_name: currentUser?.full_name || 'Student Account',
+          student_email: activeEmail,
+          college: currentUser?.college || 'DTU',
+          subject_grade: isFunding ? newSubjectGrade : null,
+          goal: isFunding ? newGoal : 0,
+          raised: 0,
+          status: isFunding ? 'pending_verification' : 'active',
+          media_type: mediaType || null,
+          media_url: mediaUrl || null,
+          upi_id: isFunding ? upiId.trim() : null,
+          qr_code_url: isFunding ? qrCodeUrl || null : null,
+          college_id_url: collegeIdUrl || null,
+          marksheet_url: marksheetUrl || null,
+          fee_challan_url: feeChallanUrl || null,
+          ai_trust_score: calculatedTrustScore,
+          ai_verification_details: verificationPayload,
+          needs_manual_review: needsManualReview,
+        }
+      ]).select();
+
+      if (error) {
+        console.error('Error creating post in Supabase:', error);
+        alert(`Failed to publish: ${error.message}`);
+        setIsSubmitting(false);
+        setSubmitStatusText('Submit Appeal for Verification');
+        return;
       }
-    ]).select();
 
-    if (error) {
-      console.error('Error creating post in Supabase:', error);
-      alert(`Failed to publish: ${error.message}`);
-      return;
-    }
+      if (data && data[0]) {
+        const newCreatedPost: UserPost = {
+          id: data[0].id,
+          title: data[0].title,
+          story: data[0].story,
+          category: data[0].category,
+          discussionTag: data[0].subject_code || newDiscussionTag,
+          datePosted: 'Just now',
+          studentName: data[0].student_name,
+          college: data[0].college,
+          status: data[0].status,
+          commentsCount: 0,
+          mediaType: data[0].media_type,
+          mediaUrl: data[0].media_url,
+          upiId: data[0].upi_id,
+          qrCodeUrl: data[0].qr_code_url,
+          aiTrustScore: calculatedTrustScore
+        };
+        setUserPosts([newCreatedPost, ...userPosts]);
 
-    if (data && data[0]) {
-      const newCreatedPost: UserPost = {
-        id: data[0].id,
-        title: data[0].title,
-        story: data[0].story,
-        category: data[0].category,
-        discussionTag: data[0].subject_code || newDiscussionTag,
-        datePosted: 'Just now',
-        studentName: data[0].student_name,
-        college: data[0].college,
-        status: data[0].status,
-        commentsCount: 0,
-        mediaType: data[0].media_type,
-        mediaUrl: data[0].media_url,
-        upiId: data[0].upi_id,
-        qrCodeUrl: data[0].qr_code_url,
-        aiTrustScore: calculatedTrustScore
-      };
-      setUserPosts([newCreatedPost, ...userPosts]);
+        const activityItem: ActivityItem = {
+          id: `act-${Date.now()}`,
+          type: 'post',
+          postTitle: data[0].title,
+          postId: data[0].id,
+          timeAgo: 'Just now',
+          content: `Created ${isFunding ? 'Fee Appeal' : 'Discussion'} post`,
+          userEmail: activeEmail
+        };
+        const userActivities = JSON.parse(localStorage.getItem('user_activities') || '[]');
+        localStorage.setItem('user_activities', JSON.stringify([activityItem, ...userActivities]));
+        setActivitiesList([activityItem, ...activitiesList]);
+      }
 
-      const activityItem: ActivityItem = {
-        id: `act-${Date.now()}`,
-        type: 'post',
-        postTitle: data[0].title,
-        postId: data[0].id,
-        timeAgo: 'Just now',
-        content: `Created ${isFunding ? 'Fee Appeal' : 'Discussion'} post`,
-        userEmail: activeEmail
-      };
-      const userActivities = JSON.parse(localStorage.getItem('user_activities') || '[]');
-      localStorage.setItem('user_activities', JSON.stringify([activityItem, ...userActivities]));
-      setActivitiesList([activityItem, ...activitiesList]);
-    }
+      setShowCreateModal(false);
 
-    setShowCreateModal(false);
+      setNewTitle('');
+      setNewStory('');
+      setNewSubjectCode('');
+      setNewSubjectGrade('');
+      setUpiId('');
+      setQrCodeFile(null);
+      setMediaFile(null);
+      setCollegeIdFile(null);
+      setResultFile(null);
+      setFeeChallanFile(null);
 
-    setNewTitle('');
-    setNewStory('');
-    setNewSubjectCode('');
-    setNewSubjectGrade('');
-    setUpiId('');
-    setQrCodeFile(null);
-    setMediaFile(null);
-    setCollegeIdFile(null);
-    setResultFile(null);
-    setFeeChallanFile(null);
-
-    if (isFunding) {
-      alert(`Fee appeal analyzed by AI (Trust Score: ${calculatedTrustScore}%) and sent to Admin Portal!`);
-    } else {
-      alert('Post published successfully!');
-      router.push('/feed');
+      if (isFunding) {
+        alert(`Fee appeal analyzed by AI (Trust Score: ${calculatedTrustScore}%) and sent to Admin Portal!`);
+      } else {
+        alert('Post published successfully!');
+        router.push('/feed');
+      }
+    } finally {
+      setIsSubmitting(false);
+      setSubmitStatusText('Submit Appeal for Verification');
     }
   };
 
@@ -1043,6 +1076,10 @@ export default function ProfilePage() {
                         <input type="file" required accept="image/*,.pdf" onChange={(e) => setFeeChallanFile(e.target.files?.[0] || null)} className="hidden" />
                       </label>
                     </div>
+
+                    <p className="text-[10px] text-slate-500 pt-1">
+                      Note: PDF uploads skip automatic AI checking and are reviewed manually by an admin instead. For instant AI verification, upload a photo (JPG/PNG) if possible.
+                    </p>
                   </div>
 
                 </div>
@@ -1063,15 +1100,24 @@ export default function ProfilePage() {
                 <button 
                   type="button"
                   onClick={() => setShowCreateModal(false)}
-                  className="w-full py-3 bg-[#121212] hover:bg-slate-800 text-slate-400 font-semibold rounded-xl border border-slate-800 transition"
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-[#121212] hover:bg-slate-800 text-slate-400 font-semibold rounded-xl border border-slate-800 transition disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Cancel
                 </button>
                 <button 
                   type="submit"
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg shadow-blue-600/20"
+                  disabled={isSubmitting}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-500 text-white font-bold rounded-xl transition shadow-lg shadow-blue-600/20 disabled:opacity-70 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
-                  {newCategory === 'funding' ? 'Submit Appeal for Verification' : 'Publish Post'}
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                      {submitStatusText}
+                    </>
+                  ) : (
+                    newCategory === 'funding' ? 'Submit Appeal for Verification' : 'Publish Post'
+                  )}
                 </button>
               </div>
 
