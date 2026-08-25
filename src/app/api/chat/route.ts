@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenAI } from '@google/genai';
 
 export async function POST(req: Request) {
   try {
@@ -15,58 +16,35 @@ export async function POST(req: Request) {
       return NextResponse.json({ reply: 'GEMINI_API_KEY is missing in .env.local' });
     }
 
-    // Using the Interactions API (generally available as of June 2026) instead of
-    // the legacy :generateContent endpoint. The legacy endpoint has a widely-reported
-    // bug rejecting new "auth" (AQ.) API keys with a 401 ACCESS_TOKEN_TYPE_UNSUPPORTED
-    // error, even when passed correctly via x-goog-api-key. The Interactions API does
-    // not have this problem.
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/interactions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          model: 'gemini-2.5-flash',
-          input: `You are "comeBack AI", a friendly assistant for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes and explain 0% commission direct P2P UPI funding.\n\nUser Question: ${latestMessage}`
-        })
+    // Using the official SDK instead of raw fetch(). The new "Auth" (AQ.-prefixed)
+    // API keys currently fail against hand-built REST calls with
+    // ACCESS_TOKEN_TYPE_UNSUPPORTED, on both the legacy generateContent endpoint
+    // and the newer Interactions endpoint. The SDK handles whatever request
+    // signing/format the new key type actually requires.
+    const ai = new GoogleGenAI({ apiKey });
+
+    let replyText = 'I am here to help you with your college fee appeals!';
+    let debugInfo: any = null;
+
+    try {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: `You are "comeBack AI", a friendly assistant for engineering students in Delhi (DTU, DU, NSUT). Help students understand re-appear exam processes and explain 0% commission direct P2P UPI funding.\n\nUser Question: ${latestMessage}`
+      });
+
+      if (response.text) {
+        replyText = response.text;
+      } else {
+        debugInfo = response;
       }
-    );
-
-    const data = await geminiRes.json();
-
-    if (data.error) {
-      return NextResponse.json({ reply: `Gemini Error: ${data.error.message}` });
-    }
-
-    // Interactions API responses put model text inside steps[].content[]
-    // (SDKs surface this as `output_text`; the raw REST response requires walking steps).
-    let replyText: string | null = null;
-    const steps = data?.steps || [];
-    const modelStep = steps.find((s: any) => s.type === 'model_output');
-    const textBlock = modelStep?.content?.find((c: any) => c.type === 'text');
-    if (textBlock?.text) {
-      replyText = textBlock.text;
-    }
-
-    // Fallbacks in case the shape differs from what's documented
-    if (!replyText && data?.output_text) {
-      replyText = data.output_text;
-    }
-
-    if (!replyText) {
-      // TEMP DEBUG: return the raw shape in the response itself so it's visible
-      // in the browser Network tab (Vercel server logs are harder to reach quickly).
-      // Remove _debug once parsing is confirmed working.
+    } catch (sdkErr: any) {
+      console.error('Gemini SDK error:', sdkErr);
       return NextResponse.json({
-        reply: 'I am here to help you with your college fee appeals!',
-        _debug: data
+        reply: `Gemini SDK Error: ${sdkErr.message || String(sdkErr)}`
       });
     }
 
-    return NextResponse.json({ reply: replyText });
+    return NextResponse.json(debugInfo ? { reply: replyText, _debug: debugInfo } : { reply: replyText });
   } catch (error: any) {
     console.error('Chatbot API Error Details:', error);
     return NextResponse.json({ reply: `Error: ${error.message}` });

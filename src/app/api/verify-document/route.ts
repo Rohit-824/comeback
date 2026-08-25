@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import { GoogleGenAI, Type } from '@google/genai';
 
 export async function POST(req: Request) {
   try {
@@ -26,89 +27,73 @@ export async function POST(req: Request) {
       validationInstructions = `Check if this is an official fee challan for amount ₹${expectedAmount}.`;
     }
 
-    // Using the Interactions API instead of the legacy :generateContent endpoint.
-    // The legacy endpoint currently rejects new "auth" (AQ.) API keys with a 401
-    // ACCESS_TOKEN_TYPE_UNSUPPORTED error even when using x-goog-api-key correctly.
-    // The Interactions API is unaffected and is Google's recommended endpoint going forward.
-    const geminiRes = await fetch(
-      'https://generativelanguage.googleapis.com/v1beta/interactions',
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': apiKey
-        },
-        body: JSON.stringify({
-          model: 'gemini-2.5-flash',
-          input: [
-            { type: 'text', text: validationInstructions },
-            {
-              type: 'image',
-              data: imageBase64,
-              mime_type: mimeType || 'image/jpeg'
-            }
-          ],
-          // Structured output: guarantees valid JSON back, no more manual
-          // backtick-stripping / JSON.parse gambling.
-          response_format: {
-            type: 'text',
-            mime_type: 'application/json',
-            schema: {
-              type: 'object',
-              properties: {
-                isValid: { type: 'boolean' },
-                trustScore: { type: 'number' },
-                extractedName: { type: 'string' },
-                extractedAmount: { type: 'number' },
-                summary: { type: 'string' }
-              },
-              required: ['isValid', 'trustScore', 'summary']
-            }
-          }
-        })
-      }
-    );
+    // Using the official SDK instead of raw fetch() — see chat route for why.
+    const ai = new GoogleGenAI({ apiKey });
 
-    const data = await geminiRes.json();
-
-    if (data.error) {
-      return NextResponse.json({ isValid: false, trustScore: 0, summary: `Gemini API Error: ${data.error.message}` });
-    }
-
-    const steps = data?.steps || [];
-    const modelStep = steps.find((s: any) => s.type === 'model_output');
-    const textBlock = modelStep?.content?.find((c: any) => c.type === 'text');
-    let rawText = textBlock?.text;
-
-    // Fallback in case the shape differs from what's documented
-    if (!rawText && data?.output_text) {
-      rawText = data.output_text;
-    }
-
-    if (!rawText) {
-      // TEMP DEBUG: return the raw shape in the response itself so it's visible
-      // in the browser Network tab (Vercel server logs are harder to reach quickly).
-      // Remove _debug once parsing is confirmed working.
-      return NextResponse.json({
-        isValid: false,
-        trustScore: 0,
-        summary: 'Could not read AI response.',
-        _debug: data
-      });
-    }
-
-    let parsed;
     try {
-      parsed = JSON.parse(rawText);
-    } catch (parseErr) {
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: [
+          {
+            role: 'user',
+            parts: [
+              { text: validationInstructions },
+              {
+                inlineData: {
+                  data: imageBase64,
+                  mimeType: mimeType || 'image/jpeg'
+                }
+              }
+            ]
+          }
+        ],
+        config: {
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              isValid: { type: Type.BOOLEAN },
+              trustScore: { type: Type.NUMBER },
+              extractedName: { type: Type.STRING },
+              extractedAmount: { type: Type.NUMBER },
+              summary: { type: Type.STRING }
+            },
+            required: ['isValid', 'trustScore', 'summary']
+          }
+        }
+      });
+
+      const rawText = response.text;
+
+      if (!rawText) {
+        return NextResponse.json({
+          isValid: false,
+          trustScore: 0,
+          summary: 'Could not read AI response.',
+          _debug: response
+        });
+      }
+
+      let parsed;
+      try {
+        parsed = JSON.parse(rawText);
+      } catch (parseErr) {
+        return NextResponse.json({
+          isValid: false,
+          trustScore: 0,
+          summary: `AI returned a non-JSON response: ${rawText.slice(0, 200)}`
+        });
+      }
+
+      return NextResponse.json(parsed);
+    } catch (sdkErr: any) {
+      console.error('Gemini SDK error:', sdkErr);
       return NextResponse.json({
         isValid: false,
         trustScore: 0,
-        summary: `AI returned a non-JSON response: ${rawText.slice(0, 200)}`
+        summary: `Gemini SDK Error: ${sdkErr.message || String(sdkErr)}`
       });
     }
-
-    return NextResponse.json(parsed);
   } catch (error: any) {
     console.error('AI Verification Error:', error);
     return NextResponse.json({ isValid: false, trustScore: 0, summary: `AI validation error: ${error.message}` });
