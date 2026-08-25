@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { GoogleGenAI, Type } from '@google/genai';
+import OpenAI from 'openai';
 
 export async function POST(req: Request) {
   try {
@@ -9,12 +9,12 @@ export async function POST(req: Request) {
       return NextResponse.json({ isValid: false, summary: 'No document image provided.' }, { status: 400 });
     }
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.OPENROUTER_API_KEY;
     if (!apiKey) {
       return NextResponse.json({
         isValid: false,
         trustScore: 0,
-        summary: 'Server Error: GEMINI_API_KEY is missing in .env.local.'
+        summary: 'Server Error: OPENROUTER_API_KEY is missing in .env.local.'
       });
     }
 
@@ -27,71 +27,78 @@ export async function POST(req: Request) {
       validationInstructions = `Check if this is an official fee challan for amount ₹${expectedAmount}.`;
     }
 
-    // Using the official SDK instead of raw fetch() — see chat route for why.
-    const ai = new GoogleGenAI({ apiKey });
+    // OpenRouter is OpenAI-API-compatible. Using a free (:free) vision-capable model
+    // — no credit card required. Free-model lineup rotates; check openrouter.ai/models
+    // filtered to "free" + "vision" if this model ID is ever delisted.
+    const openrouter = new OpenAI({
+      apiKey,
+      baseURL: 'https://openrouter.ai/api/v1'
+    });
+
+    const mt = mimeType || 'image/jpeg';
 
     try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: [
+      const completion = await openrouter.chat.completions.create({
+        model: 'thinkingmachines/inkling:free',
+        messages: [
           {
             role: 'user',
-            parts: [
-              { text: validationInstructions },
+            content: [
               {
-                inlineData: {
-                  data: imageBase64,
-                  mimeType: mimeType || 'image/jpeg'
-                }
+                type: 'text',
+                text: `${validationInstructions}
+
+Return ONLY a clean JSON object (no markdown, no backticks, no extra text):
+{
+  "isValid": boolean,
+  "trustScore": number,
+  "extractedName": string,
+  "extractedAmount": number,
+  "summary": string
+}`
+              },
+              {
+                type: 'image_url',
+                image_url: { url: `data:${mt};base64,${imageBase64}` }
               }
             ]
           }
-        ],
-        config: {
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              isValid: { type: Type.BOOLEAN },
-              trustScore: { type: Type.NUMBER },
-              extractedName: { type: Type.STRING },
-              extractedAmount: { type: Type.NUMBER },
-              summary: { type: Type.STRING }
-            },
-            required: ['isValid', 'trustScore', 'summary']
-          }
-        }
+        ]
       });
 
-      const rawText = response.text;
+      const rawText = completion.choices[0]?.message?.content;
 
       if (!rawText) {
         return NextResponse.json({
           isValid: false,
           trustScore: 0,
           summary: 'Could not read AI response.',
-          _debug: response
+          _debug: completion
         });
       }
 
+      // Free vision models don't always support strict JSON schema mode,
+      // so strip any markdown fencing the model might add anyway.
+      const cleanedText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+
       let parsed;
       try {
-        parsed = JSON.parse(rawText);
+        parsed = JSON.parse(cleanedText);
       } catch (parseErr) {
         return NextResponse.json({
           isValid: false,
           trustScore: 0,
-          summary: `AI returned a non-JSON response: ${rawText.slice(0, 200)}`
+          summary: `AI returned a non-JSON response: ${cleanedText.slice(0, 200)}`
         });
       }
 
       return NextResponse.json(parsed);
-    } catch (sdkErr: any) {
-      console.error('Gemini SDK error:', sdkErr);
+    } catch (apiErr: any) {
+      console.error('OpenRouter API error:', apiErr);
       return NextResponse.json({
         isValid: false,
         trustScore: 0,
-        summary: `Gemini SDK Error: ${sdkErr.message || String(sdkErr)}`
+        summary: `OpenRouter Error: ${apiErr.message || String(apiErr)}`
       });
     }
   } catch (error: any) {
