@@ -27,9 +27,9 @@ export async function POST(req: Request) {
       validationInstructions = `Check if this is an official fee challan for amount ₹${expectedAmount}.`;
     }
 
-    // OpenRouter is OpenAI-API-compatible. Using a free (:free) vision-capable model
-    // — no credit card required. Free-model lineup rotates; check openrouter.ai/models
-    // filtered to "free" + "vision" if this model ID is ever delisted.
+    // OpenRouter is OpenAI-API-compatible. Using Gemma's free vision-capable model
+    // — no credit card required. Free-model lineup rotates; if this ID stops working,
+    // check openrouter.ai/models filtered to "free" + "vision" for a current replacement.
     const openrouter = new OpenAI({
       apiKey,
       baseURL: 'https://openrouter.ai/api/v1'
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
     try {
       const completion = await openrouter.chat.completions.create({
-        model: 'thinkingmachines/inkling:free',
+        model: 'google/gemma-4-31b-it:free',
         messages: [
           {
             role: 'user',
