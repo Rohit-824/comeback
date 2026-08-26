@@ -360,7 +360,10 @@ export default function ProfilePage() {
               const aiData = await aiRes.json();
 
               if (!aiData.isValid) {
-                alert(`[${doc.label} Verification Failed]: ${aiData.summary || 'Document requirements not met.'}`);
+                const debugSuffix = aiData._debug
+                  ? `\n\n[Debug info]: ${JSON.stringify(aiData._debug)}`
+                  : '';
+                alert(`[${doc.label} Verification Failed]: ${aiData.summary || 'Document requirements not met.'}${debugSuffix}`);
                 setIsSubmitting(false);
                 setSubmitStatusText('Submit Appeal for Verification');
                 return;
