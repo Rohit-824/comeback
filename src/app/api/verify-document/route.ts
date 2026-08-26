@@ -32,7 +32,9 @@ export async function POST(req: Request) {
     // (429), so we try a couple of models in sequence before giving up.
     const openrouter = new OpenAI({
       apiKey,
-      baseURL: 'https://openrouter.ai/api/v1'
+      baseURL: 'https://openrouter.ai/api/v1',
+      timeout: 12000, // 12s per model attempt — a stuck/slow free model shouldn't stall the whole flow
+      maxRetries: 0   // we handle retries ourselves via the model fallback list below
     });
 
     const mt = mimeType || 'image/jpeg';
