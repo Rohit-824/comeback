@@ -33,8 +33,8 @@ export async function POST(req: Request) {
     const openrouter = new OpenAI({
       apiKey,
       baseURL: 'https://openrouter.ai/api/v1',
-      timeout: 12000, // 12s per model attempt — a stuck/slow free model shouldn't stall the whole flow
-      maxRetries: 0   // we handle retries ourselves via the model fallback list below
+      timeout: 20000, // loosened from 12s — free-tier models can be slow under load
+      maxRetries: 0
     });
 
     const mt = mimeType || 'image/jpeg';
@@ -63,6 +63,7 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
     ];
 
     let lastError: any = null;
+    const attemptLog: { model: string; error: string }[] = [];
 
     for (const model of modelsToTry) {
       try {
@@ -85,6 +86,7 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
         const rawText = completion.choices[0]?.message?.content;
         if (!rawText) {
           lastError = new Error('Empty response from model');
+          attemptLog.push({ model, error: 'Empty response' });
           continue;
         }
 
@@ -108,23 +110,28 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
           return NextResponse.json(parsed);
         } catch (parseErr) {
           lastError = new Error(`Non-JSON response: ${cleanedText.slice(0, 200)}`);
+          attemptLog.push({ model, error: `Non-JSON: ${cleanedText.slice(0, 100)}` });
           continue;
         }
       } catch (apiErr: any) {
         console.error(`OpenRouter error with model ${model}:`, apiErr);
         lastError = apiErr;
+        attemptLog.push({ model, error: apiErr.message || String(apiErr) });
         // 429 / provider errors: try the next model in the list instead of failing outright.
         continue;
       }
     }
 
     // All models failed — return a friendly, non-technical message to the user
-    // instead of leaking raw API error text (e.g. "429 Provider returned error").
-    console.error('All document verification models failed. Last error:', lastError);
+    // instead of leaking raw API error text (e.g. "429 Provider returned error"),
+    // but include a _debug log of what each model actually returned so this
+    // can be diagnosed instead of guessed at.
+    console.error('All document verification models failed. Log:', attemptLog);
     return NextResponse.json({
       isValid: false,
       trustScore: 0,
-      summary: 'Our document verification service is a bit busy right now. Please wait a moment and try uploading again.'
+      summary: 'Our document verification service is a bit busy right now. Please wait a moment and try uploading again.',
+      _debug: attemptLog
     });
   } catch (error: any) {
     console.error('AI Verification Error:', error);
