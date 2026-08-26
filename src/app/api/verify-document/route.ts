@@ -138,3 +138,4 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
     return NextResponse.json({ isValid: false, trustScore: 0, summary: `AI validation error: ${error.message}` });
   }
 }
+// final
