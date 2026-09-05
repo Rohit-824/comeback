@@ -359,6 +359,15 @@ export default function ProfilePage() {
               });
               const aiData = await aiRes.json();
 
+              if (aiData.verificationError) {
+                // AI technically failed to check this document (timeout, rate limit,
+                // all fallback models exhausted). Don't tell the student — just
+                // silently flag it for manual admin review and let the appeal
+                // continue publishing normally.
+                needsManualReview = true;
+                continue;
+              }
+
               if (!aiData.isValid) {
                 const debugSuffix = aiData._debug
                   ? `\n\n[Debug info]: ${JSON.stringify(aiData._debug)}`

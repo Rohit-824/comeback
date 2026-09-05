@@ -122,15 +122,16 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
       }
     }
 
-    // All models failed — return a friendly, non-technical message to the user
-    // instead of leaking raw API error text (e.g. "429 Provider returned error"),
-    // but include a _debug log of what each model actually returned so this
-    // can be diagnosed instead of guessed at.
+    // All models failed — this is a TECHNICAL failure (timeout/rate-limit/etc),
+    // not the AI determining the document is invalid. We flag it distinctly with
+    // verificationError so the frontend can silently route it to manual admin
+    // review instead of blocking the student's submission or showing an error.
     console.error('All document verification models failed. Log:', attemptLog);
     return NextResponse.json({
       isValid: false,
+      verificationError: true,
       trustScore: 0,
-      summary: 'Our document verification service is a bit busy right now. Please wait a moment and try uploading again.',
+      summary: 'AI verification could not be completed — routed to manual review.',
       _debug: attemptLog
     });
   } catch (error: any) {
@@ -138,4 +139,3 @@ Do not use technical terms like "JSON", "API", "model", or "confidence score" in
     return NextResponse.json({ isValid: false, trustScore: 0, summary: `AI validation error: ${error.message}` });
   }
 }
-// final
